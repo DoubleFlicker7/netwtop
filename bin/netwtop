@@ -114,6 +114,7 @@ while [ "$STOPPING" -eq 0 ]; do
 
     build_uid_names
     calculate_rows "$ELAPSED"
+    sync_highlight_visibility
     record_history "$ELAPSED"
     ACTIVE_ENTRIES=$(wc -l <"$CURRENT" | LC_ALL=C awk '{ print $1 + 0 }')
     TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S%z')

@@ -37,6 +37,7 @@ do
     }
 done
 [ -s "$PROJECT_ROOT/docs/ARCHITECTURE.md" ] || exit 1
+[ -s "$PROJECT_ROOT/docs/APT_PACKAGING.md" ] || exit 1
 [ -s "$PROJECT_ROOT/docs/DEVELOPMENT.md" ] || exit 1
 if "$PROJECT_ROOT/netwtop" --interval 0.09 --format jsonl --count 1 \
         >/dev/null 2>&1; then
@@ -235,6 +236,55 @@ render_responsive_test 99 24 100 "$PROJECT_ROOT/tests/fixtures/rows_many.tsv" 6
 grep -q 'Users 6-7/7' "$SMOKE_OUTPUT" || exit 1
 grep -q 'erin' "$SMOKE_OUTPUT" || exit 1
 grep -q 'frank' "$SMOKE_OUTPUT" || exit 1
+
+TABLE_ROWS=$PROJECT_ROOT/tests/fixtures/rows_many.tsv
+SORTED_COMMAND_ROWS=$PROJECT_ROOT/tests/fixtures/commands_scroll.tsv
+TABLE_SCROLL=0
+TABLE_PAGE_SIZE=2
+COMMAND_VIEW_SIZE=2
+COMMAND_SCROLL_UID=
+COMMAND_SCROLL_OFFSET=0
+SELECTED_UID=
+SELECTED_PID=
+EXPANDED_UID=
+move_highlight 1
+[ "$SELECTED_UID" = 0 ] && [ -z "$SELECTED_PID" ] \
+    && [ "$TABLE_SCROLL" -eq 0 ] || exit 1
+move_highlight 1
+[ "$SELECTED_UID" = 1000 ] && [ "$TABLE_SCROLL" -eq 0 ] || exit 1
+move_highlight 1
+[ "$SELECTED_UID" = 1001 ] && [ "$TABLE_SCROLL" -eq 1 ] || exit 1
+move_highlight -1
+[ "$SELECTED_UID" = 1000 ] && [ -z "$SELECTED_PID" ] || exit 1
+
+SELECTED_UID=1000
+SELECTED_PID=125
+COMMAND_SCROLL_UID=1000
+COMMAND_SCROLL_OFFSET=2
+move_highlight 1
+[ "$SELECTED_PID" = 126 ] && [ "$COMMAND_SCROLL_OFFSET" -eq 2 ] || exit 1
+move_highlight 1
+[ "$SELECTED_PID" = 127 ] && [ "$COMMAND_SCROLL_OFFSET" -eq 3 ] || exit 1
+SELECTED_PID=129
+COMMAND_SCROLL_OFFSET=5
+move_highlight 1
+[ "$SELECTED_PID" = 129 ] || exit 1
+EXPANDED_UID=1000
+TABLE_PAGE_SIZE=5
+COMMAND_SCROLL_OFFSET=3
+move_highlight 1
+[ "$SELECTED_PID" = 130 ] && [ "$COMMAND_SCROLL_OFFSET" -eq 3 ] || exit 1
+move_highlight -1
+[ "$SELECTED_PID" = 129 ] || exit 1
+INTERACTIVE_TABLE=1
+EXPANDED_UID=
+SELECTED_PID=130
+sync_highlight_visibility
+[ -z "$SELECTED_PID" ] || exit 1
+EXPANDED_UID=1000
+SELECTED_PID=130
+sync_highlight_visibility
+[ "$SELECTED_PID" = 130 ] || exit 1
 
 : >"$HITMAP_TEST"
 : >"$LAYOUT_TEST"

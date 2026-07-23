@@ -22,7 +22,8 @@ Interactive keys:
   r / R                   Refresh immediately
   + / -                   Decrease / increase the refresh interval
   a / c / f               Auto / compact / full display mode
-  Up / Down, j / k        Scroll the user table
+  Up / Down               Move the highlighted user or command
+  j / k                   Scroll users, or commands for a checked user
   PageUp / PageDown       Scroll users, or commands for a checked user
   [ / ]                   Scroll the selected user's command area
   Space / x               Check or uncheck the selected user
@@ -349,6 +350,158 @@ scroll_selected_commands() {
     [ "$COMMAND_SCROLL_OFFSET" -ge 0 ] || COMMAND_SCROLL_OFFSET=0
 }
 
+move_user_highlight() {
+    navigation_delta=$1
+    [ -z "${EXPANDED_UID:-}" ] || return 0
+    [ -r "${TABLE_ROWS:-}" ] || return 0
+
+    navigation_user_count=$(LC_ALL=C awk 'END { print NR + 0 }' "$TABLE_ROWS")
+    [ "$navigation_user_count" -gt 0 ] || {
+        SELECTED_UID=
+        SELECTED_PID=
+        return 0
+    }
+
+    navigation_current_index=
+    if [ -n "${SELECTED_UID:-}" ]; then
+        navigation_current_index=$(LC_ALL=C awk -F '\t' \
+            -v selected_uid="$SELECTED_UID" '
+                $1 == selected_uid { print NR; exit }
+            ' "$TABLE_ROWS")
+    fi
+
+    if [ -z "$navigation_current_index" ]; then
+        if [ "$navigation_delta" -gt 0 ]; then
+            navigation_target_index=$((TABLE_SCROLL + 1))
+        else
+            navigation_target_index=$((TABLE_SCROLL + TABLE_PAGE_SIZE))
+        fi
+    else
+        navigation_target_index=$((navigation_current_index + navigation_delta))
+    fi
+    [ "$navigation_target_index" -ge 1 ] || navigation_target_index=1
+    if [ "$navigation_target_index" -gt "$navigation_user_count" ]; then
+        navigation_target_index=$navigation_user_count
+    fi
+
+    navigation_target_uid=$(LC_ALL=C awk -F '\t' \
+        -v target_index="$navigation_target_index" \
+        'NR == target_index { print $1; exit }' "$TABLE_ROWS")
+    [ -n "$navigation_target_uid" ] || return 0
+
+    SELECTED_UID=$navigation_target_uid
+    SELECTED_PID=
+    if [ "$COMMAND_SCROLL_UID" != "$SELECTED_UID" ]; then
+        COMMAND_SCROLL_UID=$SELECTED_UID
+        COMMAND_SCROLL_OFFSET=0
+    fi
+
+    navigation_page_size=${TABLE_PAGE_SIZE:-1}
+    [ "$navigation_page_size" -gt 0 ] || navigation_page_size=1
+    if [ "$navigation_target_index" -le "$TABLE_SCROLL" ]; then
+        TABLE_SCROLL=$((navigation_target_index - 1))
+    elif [ "$navigation_target_index" \
+            -gt "$((TABLE_SCROLL + navigation_page_size))" ]; then
+        TABLE_SCROLL=$((navigation_target_index - navigation_page_size))
+    fi
+}
+
+move_command_highlight() {
+    navigation_delta=$1
+    [ -n "${SELECTED_UID:-}" ] || return 0
+    [ -r "${SORTED_COMMAND_ROWS:-}" ] || return 0
+
+    navigation_include_idle=0
+    if [ -n "${EXPANDED_UID:-}" ] && [ "$EXPANDED_UID" = "$SELECTED_UID" ]; then
+        navigation_include_idle=1
+    fi
+    navigation_command_count=$(LC_ALL=C awk -F '\t' \
+        -v selected_uid="$SELECTED_UID" \
+        -v include_idle="$navigation_include_idle" '
+            $1 == selected_uid && (include_idle || (($4 + 0) + ($5 + 0) > 0)) {
+                count++
+            }
+            END { print count + 0 }
+        ' "$SORTED_COMMAND_ROWS")
+    if [ "$navigation_command_count" -le 0 ]; then
+        SELECTED_PID=
+        return 0
+    fi
+
+    navigation_current_index=
+    if [ -n "${SELECTED_PID:-}" ]; then
+        navigation_current_index=$(LC_ALL=C awk -F '\t' \
+            -v selected_uid="$SELECTED_UID" -v selected_pid="$SELECTED_PID" \
+            -v include_idle="$navigation_include_idle" '
+                $1 == selected_uid &&
+                        (include_idle || (($4 + 0) + ($5 + 0) > 0)) {
+                    count++
+                    if ($2 == selected_pid) { print count; exit }
+                }
+            ' "$SORTED_COMMAND_ROWS")
+    fi
+
+    if [ -z "$navigation_current_index" ]; then
+        if [ "$navigation_delta" -gt 0 ]; then
+            navigation_target_index=1
+        elif [ "$navigation_delta" -lt 0 ]; then
+            navigation_target_index=$navigation_command_count
+        else
+            SELECTED_PID=
+            return 0
+        fi
+    else
+        navigation_target_index=$((navigation_current_index + navigation_delta))
+    fi
+    [ "$navigation_target_index" -ge 1 ] || navigation_target_index=1
+    if [ "$navigation_target_index" -gt "$navigation_command_count" ]; then
+        navigation_target_index=$navigation_command_count
+    fi
+
+    navigation_target_pid=$(LC_ALL=C awk -F '\t' \
+        -v selected_uid="$SELECTED_UID" \
+        -v include_idle="$navigation_include_idle" \
+        -v target_index="$navigation_target_index" '
+            $1 == selected_uid && (include_idle || (($4 + 0) + ($5 + 0) > 0)) {
+                count++
+                if (count == target_index) { print $2; exit }
+            }
+        ' "$SORTED_COMMAND_ROWS")
+    [ -n "$navigation_target_pid" ] || return 0
+
+    SELECTED_PID=$navigation_target_pid
+    if [ "$COMMAND_SCROLL_UID" != "$SELECTED_UID" ]; then
+        COMMAND_SCROLL_UID=$SELECTED_UID
+        COMMAND_SCROLL_OFFSET=0
+    fi
+    if [ "$navigation_include_idle" -eq 1 ]; then
+        navigation_page_size=${TABLE_PAGE_SIZE:-1}
+    else
+        navigation_page_size=${COMMAND_VIEW_SIZE:-1}
+    fi
+    [ "$navigation_page_size" -gt 0 ] || navigation_page_size=1
+    if [ "$navigation_target_index" -le "$COMMAND_SCROLL_OFFSET" ]; then
+        COMMAND_SCROLL_OFFSET=$((navigation_target_index - 1))
+    elif [ "$navigation_target_index" \
+            -gt "$((COMMAND_SCROLL_OFFSET + navigation_page_size))" ]; then
+        COMMAND_SCROLL_OFFSET=$((navigation_target_index - navigation_page_size))
+    fi
+}
+
+move_highlight() {
+    if [ -n "${SELECTED_PID:-}" ]; then
+        move_command_highlight "$1"
+    else
+        move_user_highlight "$1"
+    fi
+}
+
+sync_highlight_visibility() {
+    [ "${INTERACTIVE_TABLE:-0}" -eq 1 ] || return 0
+    [ -n "${SELECTED_PID:-}" ] || return 0
+    move_command_highlight 0
+}
+
 handle_mouse_event() {
     mouse_payload=${pressed_key#???}
     mouse_body=${mouse_payload%?}
@@ -476,10 +629,14 @@ wait_interval_or_key() {
             a|A) DISPLAY_MODE=auto; return ;;
             c|C) DISPLAY_MODE=compact; return ;;
             f|F) DISPLAY_MODE=full; return ;;
-            j|J|"${ESCAPE_SEQUENCE}[B"|"${ESCAPE_SEQUENCE}OB")
+            j|J)
                 scroll_user_table 1; return ;;
-            k|K|"${ESCAPE_SEQUENCE}[A"|"${ESCAPE_SEQUENCE}OA")
+            k|K)
                 scroll_user_table -1; return ;;
+            "${ESCAPE_SEQUENCE}[B"|"${ESCAPE_SEQUENCE}OB")
+                move_highlight 1; return ;;
+            "${ESCAPE_SEQUENCE}[A"|"${ESCAPE_SEQUENCE}OA")
+                move_highlight -1; return ;;
             "${ESCAPE_SEQUENCE}[5~")
                 scroll_user_table "$((-TABLE_PAGE_SIZE))"; return ;;
             "${ESCAPE_SEQUENCE}[6~")

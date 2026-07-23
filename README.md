@@ -193,8 +193,8 @@ Interactive controls do not require Enter.
 | `a` | Switch to Auto mode. |
 | `c` | Switch to Compact mode. |
 | `f` | Switch to Full mode. |
-| `Up`, `k` | Scroll the user table up, or scroll commands in checked-user mode. |
-| `Down`, `j` | Scroll the user table down, or scroll commands in checked-user mode. |
+| `Up`, `Down` | Move the highlight according to its current context. A highlighted user moves to the previous/next user; a highlighted command moves to the previous/next command under that user. The corresponding viewport scrolls automatically. |
+| `k`, `j` | Scroll the user table up/down. In checked-user mode, scroll that user's command list. |
 | `PageUp`, `PageDown` | Move by the current visible user or command page. |
 | `[`, `]` | Scroll the selected user's fixed command viewport. |
 | `Space`, `x` | Check or uncheck the selected user. |
@@ -205,6 +205,15 @@ Only one user can be checked at a time. A checked user occupies the complete
 lower panel and shows all commands observed for that user during the current
 session, including commands that are currently idle. Clicking the `[x]` row or
 pressing `Space`/`x` again restores the normal multi-user view.
+
+The Up/Down keys follow the current highlight instead of merely moving the
+viewport. When a user row is highlighted, they move through the stable user
+order. When a command row is highlighted, they remain inside that user and move
+through the command list. Normal mode navigates commands carrying traffic in
+the current interval; checked-user mode also navigates commands retained from
+earlier samples. Crossing a viewport edge scrolls it just enough to keep the
+new highlight visible. Use `j`/`k` when the intention is to scroll without
+changing the highlighted object.
 
 ## Understanding the dashboard
 
@@ -495,8 +504,9 @@ exclude traffic that the process backend cannot observe or attribute.
 ### Some users are not visible in a short window
 
 Read the `Users first-last/total` range in the lower title and scroll with
-`j`/`k`, the arrow keys, PageUp/PageDown, or the mouse wheel. Compact mode can
-fit more users:
+Up/Down changes the highlighted user and automatically follows it. To scroll
+without changing the highlight, use `j`/`k`, PageUp/PageDown, or the mouse
+wheel. Compact mode can fit more users:
 
 ```sh
 netwtop --mode compact
@@ -520,6 +530,7 @@ export PATH="$HOME/.local/bin:$PATH"
 ├── compat/network_monitor.sh    Legacy development launcher
 ├── docs/
 │   ├── ARCHITECTURE.md          Data flow and module boundaries
+│   ├── APT_PACKAGING.md         Debian/APT packaging and publishing process
 │   └── DEVELOPMENT.md           Contributor workflow and conventions
 ├── install.sh                   User-prefix installer
 ├── lib/netwtop/
@@ -538,7 +549,9 @@ export PATH="$HOME/.local/bin:$PATH"
 
 See [Architecture](docs/ARCHITECTURE.md) for the data pipeline and renderer
 invariants. See [Development guide](docs/DEVELOPMENT.md) for testing, coding
-conventions, staging installation, and backend extension instructions.
+conventions, staging installation, and backend extension instructions. See
+[APT packaging guide](docs/APT_PACKAGING.md) for building a `.deb`, publishing
+an APT repository, and submitting the package to Debian.
 
 Run all offline checks with:
 

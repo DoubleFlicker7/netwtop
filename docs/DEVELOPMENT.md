@@ -22,6 +22,9 @@ The layout mirrors the installed prefix: `bin/netwtop` loads modules from
 `lib/netwtop`. The root `netwtop` file only points a development checkout at
 that install-style tree.
 
+Packaging and repository publication are documented separately in
+[`APT_PACKAGING.md`](APT_PACKAGING.md).
+
 ## Running from a checkout
 
 ```sh
@@ -53,6 +56,7 @@ The suite checks:
 - The Upload/Download width breakpoint.
 - Exact frame width across terminal sizes from 78 to 240 columns.
 - User pagination, command scrolling, mouse hit maps, and checked-user mode.
+- Context-aware Up/Down highlight navigation for users and commands.
 - Terminal-safe command text and UTF-8 graph alignment.
 - Rolling-history retention and CSV/JSONL behavior.
 
@@ -131,4 +135,3 @@ When adding support for another OS:
 4. Load and install the module through `bin/netwtop` and `install.sh`.
 5. Add fixture-driven parser and renderer tests.
 6. Document the accounting semantics and known gaps in `README.md`.
-

@@ -78,7 +78,7 @@ report_table() {
     display_time=$(LC_ALL=C date '+%a %b %d %T %Y')
     session_label="${USER:-user}@$HOST_NAME"
     if [ "$INTERACTIVE_TABLE" -eq 1 ]; then
-        session_label="[q] [j/k/Pg] [x] [[/]] [mouse]"
+        session_label="[q] [Up/Dn] [j/k/Pg] [x] [mouse]"
     fi
 
     # A resize can arrive while a frame is being built. Render again with the
