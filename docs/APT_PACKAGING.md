@@ -344,6 +344,11 @@ sudo apt install ./netwtop_0.1.0-1_all.deb
 
 自建仓库可以实现“添加一次软件源，以后通过包名安装和升级”。
 
+完整的仓库规划、GPG 密钥、`reprepro` 配置、HTTPS 部署、deb822
+`.sources`、CI/CD 和密钥轮换步骤见
+[自建 APT 仓库实施指南](SELF_HOSTED_APT_REPOSITORY.md)。本节只保留三种
+发布路线之间的概览对比。
+
 需要完成：
 
 1. 构建 `.deb` 和源码包。

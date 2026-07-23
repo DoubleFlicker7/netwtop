@@ -39,6 +39,7 @@ done
 [ -s "$PROJECT_ROOT/docs/ARCHITECTURE.md" ] || exit 1
 [ -s "$PROJECT_ROOT/docs/APT_PACKAGING.md" ] || exit 1
 [ -s "$PROJECT_ROOT/docs/DEVELOPMENT.md" ] || exit 1
+[ -s "$PROJECT_ROOT/docs/SELF_HOSTED_APT_REPOSITORY.md" ] || exit 1
 if "$PROJECT_ROOT/netwtop" --interval 0.09 --format jsonl --count 1 \
         >/dev/null 2>&1; then
     printf 'Error: An interval faster than 10 Hz was accepted.\n' >&2

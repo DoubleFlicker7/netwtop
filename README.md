@@ -25,20 +25,46 @@ All program output is in English.
 
 ## Contents
 
-- [Platform support and requirements](#platform-support-and-requirements)
-- [Installation](#installation)
-- [Quick start](#quick-start)
-- [Command-line options](#command-line-options)
-- [Interactive controls](#interactive-controls)
-- [Understanding the dashboard](#understanding-the-dashboard)
-- [Responsive layout](#responsive-layout)
-- [Privileges and cross-user visibility](#privileges-and-cross-user-visibility)
-- [Output formats](#output-formats)
-- [Accounting model](#accounting-model)
-- [Comparison with nload](#comparison-with-nload)
-- [Known limitations](#known-limitations)
-- [Troubleshooting](#troubleshooting)
-- [Project structure and development](#project-structure-and-development)
+- [netwtop](#netwtop)
+  - [Highlights](#highlights)
+  - [Contents](#contents)
+  - [Platform support and requirements](#platform-support-and-requirements)
+    - [Linux](#linux)
+    - [macOS](#macos)
+    - [Terminal size](#terminal-size)
+  - [Installation](#installation)
+    - [Run directly from the checkout](#run-directly-from-the-checkout)
+    - [Install for the current user](#install-for-the-current-user)
+    - [Install to another prefix](#install-to-another-prefix)
+  - [Quick start](#quick-start)
+  - [Command-line options](#command-line-options)
+  - [Interactive controls](#interactive-controls)
+  - [Understanding the dashboard](#understanding-the-dashboard)
+    - [Interface panel](#interface-panel)
+    - [User panel](#user-panel)
+    - [ACCOUNTED row](#accounted-row)
+  - [Responsive layout](#responsive-layout)
+  - [Privileges and cross-user visibility](#privileges-and-cross-user-visibility)
+  - [Output formats](#output-formats)
+    - [Live table](#live-table)
+    - [CSV](#csv)
+    - [JSONL](#jsonl)
+  - [Accounting model](#accounting-model)
+    - [Interface totals](#interface-totals)
+    - [Linux application attribution](#linux-application-attribution)
+    - [macOS application attribution](#macos-application-attribution)
+  - [Comparison with nload](#comparison-with-nload)
+  - [Known limitations](#known-limitations)
+  - [Troubleshooting](#troubleshooting)
+    - [`Error: Interval must be at least 0.1 seconds...`](#error-interval-must-be-at-least-01-seconds)
+    - [`Linux backend requires the ss command from iproute2`](#linux-backend-requires-the-ss-command-from-iproute2)
+    - [Other users show `[unattributed]` or `PID -`](#other-users-show-unattributed-or-pid--)
+    - [nload shows more traffic than user rows](#nload-shows-more-traffic-than-user-rows)
+    - [Some users are not visible in a short window](#some-users-are-not-visible-in-a-short-window)
+    - [The command is not found after installation](#the-command-is-not-found-after-installation)
+  - [Project structure and development](#project-structure-and-development)
+  - [Changelog](#changelog)
+  - [License](#license)
 
 ## Platform support and requirements
 
@@ -531,7 +557,9 @@ export PATH="$HOME/.local/bin:$PATH"
 ├── docs/
 │   ├── ARCHITECTURE.md          Data flow and module boundaries
 │   ├── APT_PACKAGING.md         Debian/APT packaging and publishing process
-│   └── DEVELOPMENT.md           Contributor workflow and conventions
+│   ├── DEVELOPMENT.md           Contributor workflow and conventions
+│   └── SELF_HOSTED_APT_REPOSITORY.md
+│                                Project-owned APT repository operations
 ├── install.sh                   User-prefix installer
 ├── lib/netwtop/
 │   ├── accounting.sh            Deltas, cumulative totals, and ordering
@@ -551,7 +579,10 @@ See [Architecture](docs/ARCHITECTURE.md) for the data pipeline and renderer
 invariants. See [Development guide](docs/DEVELOPMENT.md) for testing, coding
 conventions, staging installation, and backend extension instructions. See
 [APT packaging guide](docs/APT_PACKAGING.md) for building a `.deb`, publishing
-an APT repository, and submitting the package to Debian.
+an APT repository, and submitting the package to Debian. The detailed
+[self-hosted APT repository guide](docs/SELF_HOSTED_APT_REPOSITORY.md) covers
+the recommended `reprepro` setup, signing, HTTPS publication, CI/CD, client
+configuration, and key rotation.
 
 Run all offline checks with:
 
@@ -563,3 +594,11 @@ The interface is independently implemented and visually inspired by nvitop's
 responsive terminal design. Traffic-counter behavior was validated against the
 interface-accounting model used by nload. This project does not import or copy
 either project's UI implementation and does not invoke them at runtime.
+
+## Changelog
+See [CHANGELOG.md](CHANGELOG.md).
+
+## License
+The source code of `netwtop` is dual-licensed by the **Apache License, Version 2.0 (Apache-2.0)** and **GNU General Public License, Version 3 (GPL-3.0)**.
+
+

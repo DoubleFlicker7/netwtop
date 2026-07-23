@@ -22,8 +22,9 @@ The layout mirrors the installed prefix: `bin/netwtop` loads modules from
 `lib/netwtop`. The root `netwtop` file only points a development checkout at
 that install-style tree.
 
-Packaging and repository publication are documented separately in
-[`APT_PACKAGING.md`](APT_PACKAGING.md).
+Packaging is documented in [`APT_PACKAGING.md`](APT_PACKAGING.md). The
+production procedure for publishing from the project's own repository is in
+[`SELF_HOSTED_APT_REPOSITORY.md`](SELF_HOSTED_APT_REPOSITORY.md).
 
 ## Running from a checkout
 
