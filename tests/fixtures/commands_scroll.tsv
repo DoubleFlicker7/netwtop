@@ -1,0 +1,8 @@
+1000	123	/usr/bin/example-one --serve	1024	2048	1024	2048	1
+1000	124	/usr/bin/example-two --serve	2048	4096	2048	4096	1
+1000	125	/usr/bin/example-three --serve	3072	6144	3072	6144	1
+1000	126	/usr/bin/example-four --serve	4096	8192	4096	8192	1
+1000	127	/usr/bin/example-five --serve	5120	10240	5120	10240	1
+1000	128	/usr/bin/example-six --serve	6144	12288	6144	12288	1
+1000	129	/usr/bin/example-seven --serve	7168	14336	7168	14336	1
+1000	130	/usr/bin/example-eight --serve	0	0	8192	16384	1

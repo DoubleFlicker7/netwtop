@@ -1,0 +1,135 @@
+#!/bin/sh
+# Main netwtop entry point. Functional code lives in lib/netwtop.
+
+set -u
+umask 077
+
+BIN_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
+PREFIX_DIR=$(CDPATH= cd -- "$BIN_DIR/.." && pwd) || exit 1
+NETWTOP_LIB_DIR=${NETWTOP_LIB_DIR:-$PREFIX_DIR/lib/netwtop}
+
+for module in \
+    runtime.sh \
+    backends/common.sh \
+    backends/linux.sh \
+    backends/macos.sh \
+    interfaces.sh \
+    accounting.sh \
+    history.sh \
+    formats.sh \
+    ui/table.sh
+do
+    if [ ! -r "$NETWTOP_LIB_DIR/$module" ]; then
+        printf 'Error: Required netwtop module not found: %s\n' \
+            "$NETWTOP_LIB_DIR/$module" >&2
+        exit 1
+    fi
+done
+if [ ! -r "$NETWTOP_LIB_DIR/ui/table.awk" ]; then
+    printf 'Error: Required netwtop module not found: %s\n' \
+        "$NETWTOP_LIB_DIR/ui/table.awk" >&2
+    exit 1
+fi
+
+. "$NETWTOP_LIB_DIR/runtime.sh"
+. "$NETWTOP_LIB_DIR/backends/common.sh"
+. "$NETWTOP_LIB_DIR/backends/linux.sh"
+. "$NETWTOP_LIB_DIR/backends/macos.sh"
+. "$NETWTOP_LIB_DIR/interfaces.sh"
+. "$NETWTOP_LIB_DIR/accounting.sh"
+. "$NETWTOP_LIB_DIR/history.sh"
+. "$NETWTOP_LIB_DIR/formats.sh"
+. "$NETWTOP_LIB_DIR/ui/table.sh"
+
+PROGRAM=${NETWTOP_PROGRAM_NAME:-${0##*/}}
+INTERVAL=0.5
+INTERVAL_TENTHS=5
+COUNT=
+DISPLAY_MODE=auto
+TWO_COLUMN_WIDTH=100
+FORMAT=table
+OUTPUT=
+APPEND=0
+DEVICE=
+STOPPING=0
+WORK_DIR=
+TABLE_TARGET=
+INTERACTIVE_TABLE=0
+TTY_STATE=
+ALT_SCREEN=0
+CURSOR_HIDDEN=0
+MOUSE_ENABLED=0
+RESIZE_PENDING=0
+LAST_UI_WIDTH=0
+LAST_UI_HEIGHT=0
+TABLE_SCROLL=0
+TABLE_PAGE_SIZE=1
+COMMAND_SCROLL_UID=
+COMMAND_SCROLL_OFFSET=0
+SELECTED_UID=
+SELECTED_PID=
+EXPANDED_UID=
+COMMAND_VIEW_SIZE=2
+ESCAPE_SEQUENCE=$(printf '\033')
+MACOS_NETTOP=
+MACOS_NETSTAT=
+MACOS_ROUTE=
+MACOS_IFCONFIG=
+INTERFACE_RX_DELTA=0
+INTERFACE_TX_DELTA=0
+ELAPSED_TICKS=100
+ATTRIBUTION_DEVICE_SCOPED=0
+HISTORY_SAMPLE=0
+HISTORY_LIMIT=120
+
+parse_options "$@"
+validate_options
+validate_commands
+detect_platform
+configure_interface
+configure_table_target
+create_workspace
+
+trap cleanup 0
+trap request_stop HUP INT TERM
+trap request_resize WINCH
+
+enable_interactive_terminal
+: >"$TOTALS"
+: >"$COMMAND_TOTALS"
+: >"$HISTORY"
+prepare_output
+
+snapshot_interface "$INTERFACE_PREVIOUS"
+take_snapshot "$PREVIOUS"
+REPORTS=0
+
+while [ "$STOPPING" -eq 0 ]; do
+    wait_interval_or_key
+    [ "$STOPPING" -eq 0 ] || break
+
+    snapshot_interface "$INTERFACE_CURRENT"
+    take_snapshot "$CURRENT"
+    calculate_interface_delta
+
+    build_uid_names
+    calculate_rows "$ELAPSED"
+    record_history "$ELAPSED"
+    ACTIVE_ENTRIES=$(wc -l <"$CURRENT" | LC_ALL=C awk '{ print $1 + 0 }')
+    TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S%z')
+
+    case $FORMAT in
+        table) report_table "$TIMESTAMP" "$ELAPSED" "$ACTIVE_ENTRIES" ;;
+        csv) report_csv "$TIMESTAMP" "$ELAPSED" "$ACTIVE_ENTRIES" ;;
+        jsonl) report_jsonl "$TIMESTAMP" "$ELAPSED" "$ACTIVE_ENTRIES" ;;
+    esac
+
+    mv "$CURRENT" "$PREVIOUS"
+    mv "$INTERFACE_CURRENT" "$INTERFACE_PREVIOUS"
+    REPORTS=$((REPORTS + 1))
+    if [ -n "$COUNT" ] && [ "$REPORTS" -ge "$COUNT" ]; then
+        break
+    fi
+done
+
+exit 0
