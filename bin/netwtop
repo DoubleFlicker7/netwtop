@@ -82,11 +82,17 @@ ELAPSED_TICKS=100
 ATTRIBUTION_DEVICE_SCOPED=0
 HISTORY_SAMPLE=0
 HISTORY_LIMIT=120
+LOGIN_UID_MIN=1000
+CURRENT_UID=
+CURRENT_USER=
+INVOKING_UID=
+SHOW_ALL_COMMANDS=0
 
 parse_options "$@"
 validate_options
 validate_commands
 detect_platform
+configure_user_scope
 configure_interface
 configure_table_target
 create_workspace
@@ -135,7 +141,8 @@ while [ "$STOPPING" -eq 0 ]; do
     calculate_rows "$ELAPSED"
     sync_highlight_visibility
     record_history "$ELAPSED"
-    ACTIVE_ENTRIES=$(wc -l <"$CURRENT" | LC_ALL=C awk '{ print $1 + 0 }')
+    ACTIVE_ENTRIES=$(LC_ALL=C awk -F '\t' \
+        '{ total += $6 } END { print total + 0 }' "$ROWS")
     TIMESTAMP=$(date '+%Y-%m-%dT%H:%M:%S%z')
 
     case $FORMAT in

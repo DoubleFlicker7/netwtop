@@ -1,14 +1,9 @@
 # Linux socket snapshot backend based on ss TCP counters.
 
-snapshot_linux() {
-    destination=$1
-    build_process_map
-    if ! LC_ALL=C ss -tinepH >"$RAW" 2>"$ERROR_LOG"; then
-        detail=$(awk 'NF { print; exit }' "$ERROR_LOG")
-        [ -n "$detail" ] || detail='ss failed without an error message'
-        fail "Unable to read Linux socket statistics: $detail"
-    fi
-
+parse_linux_snapshot() {
+    process_map=$1
+    socket_snapshot=$2
+    destination=$3
     LC_ALL=C awk '
         function value_after_colon(text) {
             sub(/^[^:]*:/, "", text)
@@ -17,6 +12,7 @@ snapshot_linux() {
 
         FILENAME == ARGV[1] {
             split($0, process_fields, "\t")
+            pid_uid[process_fields[1]] = process_fields[2]
             pid_command[process_fields[1]] = process_fields[3]
             next
         }
@@ -36,8 +32,13 @@ snapshot_linux() {
                 pid = substr($0, RSTART, RLENGTH)
                 sub(/^pid=/, "", pid)
             }
-            if (pid != "" && pid in pid_command) process_command = pid_command[pid]
-            else {
+            if (pid != "" && pid in pid_command) {
+                # The process effective UID is authoritative when a PID is
+                # visible. In particular, a command launched through sudo must
+                # be charged to root rather than to the invoking account.
+                uid = pid_uid[pid]
+                process_command = pid_command[pid]
+            } else {
                 pid = "-"
                 process_command = "[unattributed]"
             }
@@ -63,6 +64,18 @@ snapshot_linux() {
             }
             have_socket = 0
         }
-    ' "$PID_COMMANDS" "$RAW" >"$destination" \
+    ' "$process_map" "$socket_snapshot" >"$destination" \
         || fail "Unable to parse Linux socket statistics"
+}
+
+snapshot_linux() {
+    destination=$1
+    build_process_map
+    if ! LC_ALL=C ss -tinepH >"$RAW" 2>"$ERROR_LOG"; then
+        detail=$(awk 'NF { print; exit }' "$ERROR_LOG")
+        [ -n "$detail" ] || detail='ss failed without an error message'
+        fail "Unable to read Linux socket statistics: $detail"
+    fi
+
+    parse_linux_snapshot "$PID_COMMANDS" "$RAW" "$destination"
 }

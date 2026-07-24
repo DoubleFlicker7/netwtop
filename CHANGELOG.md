@@ -9,7 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-No changes yet.
+### Changed
+
+- Use gray for user identity fields while preserving green Upload and blue
+  Download values and histories in both responsive table layouts.
+- Restrict aggregate attribution to `root`, the current/invoking user, and UIDs
+  at or above the platform's regular-user threshold.
+- Show command details for all visible regular users only when running as root;
+  normal users now see their own commands while retaining other users' totals.
+- Prefer the effective process UID over the socket UID whenever Linux exposes a
+  PID, so commands launched through `sudo` are charged to root.
+
+### Fixed
+
+- Prevent system service accounts such as `_apt` and `systemd-resolve` from
+  appearing as users when root can inspect their sockets.
+- Prevent normal users from seeing other users' command lines or misleading
+  cross-user `[unattributed]` command rows.
+- Resolve the session label from the effective identity instead of a possibly
+  stale `USER` variable, and retain the current user's zero-traffic row when no
+  observable socket exists.
 
 ------
 

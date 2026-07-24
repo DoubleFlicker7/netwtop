@@ -63,7 +63,7 @@ report_table() {
         color_border=$(printf '\033[37m')
         color_title=$(printf '\033[1;36m')
         color_header=$(printf '\033[1m')
-        color_user=$(printf '\033[1;32m')
+        color_user=$(printf '\033[90m')
         color_upload=$(printf '\033[32m')
         color_download=$(printf '\033[34m')
         color_warning=$(printf '\033[1;33m')
@@ -76,7 +76,7 @@ report_table() {
     fi
 
     display_time=$(LC_ALL=C date '+%a %b %d %T %Y')
-    session_label="${USER:-user}@$HOST_NAME"
+    session_label="$CURRENT_USER@$HOST_NAME"
     if [ "$INTERACTIVE_TABLE" -eq 1 ]; then
         session_label="[q] [L/R:IF] [Up/Dn] [j/k/Pg] [x] [mouse]"
     fi
@@ -105,6 +105,8 @@ report_table() {
             -v interface_rx_delta="$INTERFACE_RX_DELTA" \
             -v interface_tx_delta="$INTERFACE_TX_DELTA" \
             -v attribution_device_scoped="$ATTRIBUTION_DEVICE_SCOPED" \
+            -v show_all_commands="$SHOW_ALL_COMMANDS" \
+            -v current_uid="$CURRENT_UID" \
             -v history_limit="$HISTORY_LIMIT" \
             -v interactive_ui="$INTERACTIVE_TABLE" \
             -v table_scroll="$TABLE_SCROLL" \

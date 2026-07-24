@@ -1,9 +1,50 @@
 # Delta calculation, cumulative state, display ordering, and live ranking input.
 
+filter_visible_user_rows() {
+    LC_ALL=C awk -F '\t' \
+        -v login_uid_min="$LOGIN_UID_MIN" \
+        -v current_uid="$CURRENT_UID" \
+        -v invoking_uid="$INVOKING_UID" '
+        function is_visible_uid(uid) {
+            uid += 0
+            return uid == 0 || uid == current_uid || uid == invoking_uid \
+                || uid >= login_uid_min
+        }
+        is_visible_uid($1)
+    ' "$ROWS" >"$RAW" \
+        || fail "Unable to filter system service accounts"
+    mv "$RAW" "$ROWS" \
+        || fail "Unable to retain filtered user traffic"
+
+    LC_ALL=C awk -F '\t' \
+        -v login_uid_min="$LOGIN_UID_MIN" \
+        -v current_uid="$CURRENT_UID" \
+        -v invoking_uid="$INVOKING_UID" \
+        -v show_all_commands="$SHOW_ALL_COMMANDS" '
+        function is_visible_uid(uid) {
+            uid += 0
+            return uid == 0 || uid == current_uid || uid == invoking_uid \
+                || uid >= login_uid_min
+        }
+        is_visible_uid($1) && (show_all_commands || ($1 + 0) == current_uid)
+    ' "$COMMAND_ROWS" >"$RAW" \
+        || fail "Unable to filter command details by privilege"
+    mv "$RAW" "$COMMAND_ROWS" \
+        || fail "Unable to retain permitted command details"
+}
+
 calculate_rows() {
     elapsed=$1
     : >"$COMMAND_ROWS"
-    LC_ALL=C awk -F '\t' -v command_rows="$COMMAND_ROWS" '
+    LC_ALL=C awk -F '\t' -v command_rows="$COMMAND_ROWS" \
+        -v current_uid="$CURRENT_UID" -v invoking_uid="$INVOKING_UID" '
+        BEGIN {
+            # Keep the effective user visible even when no observable socket
+            # exists in this sample. Under sudo, retain the invoking user too.
+            if (current_uid ~ /^[0-9]+$/) seen_uid[current_uid] = 1
+            if (invoking_uid ~ /^[0-9]+$/) seen_uid[invoking_uid] = 1
+        }
+
         FILENAME == ARGV[1] {
             key = $1
             uid = $2
@@ -88,6 +129,8 @@ calculate_rows() {
         }
     ' "$PREVIOUS" "$CURRENT" "$TOTALS" "$COMMAND_TOTALS" >"$ROWS" \
         || fail "Unable to calculate usage deltas"
+
+    filter_visible_user_rows
 
     LC_ALL=C awk -F '\t' '{ printf "%.0f\t%s\n", $2 + $3, $0 }' "$ROWS" \
         | LC_ALL=C sort -t '	' -k1,1nr \

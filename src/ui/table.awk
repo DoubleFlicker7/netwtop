@@ -400,6 +400,45 @@ function table_row(user_cell, uid_cell, upload_rate_cell,
         active_width, active_cell)
 }
 
+function styled_dual_history(key, width, upload_width, download_width,
+        upload_graph, download_graph) {
+    upload_width = int((width - 1) / 2)
+    download_width = width - upload_width - 1
+    upload_graph = braille_graph_line(key, 1, upload_width, 1, 1)
+    download_graph = braille_graph_line(key, 2, download_width, 1, 1)
+    return color_upload upload_graph color_reset color_user "|" color_reset \
+        color_download download_graph color_reset
+}
+
+function styled_table_row(user_cell, uid_cell, upload_rate_cell,
+        download_rate_cell, history_key, active_cell, identity_color,
+        user_part, uid_part, upload_part, download_part, history_part,
+        active_part) {
+    user_cell = clip_text(user_cell, user_width)
+    uid_cell = clip_text(uid_cell, uid_width)
+    upload_rate_cell = clip_text(upload_rate_cell, upload_rate_width)
+    download_rate_cell = clip_text(download_rate_cell, download_rate_width)
+    active_cell = clip_text(active_cell, active_width)
+    user_part = sprintf("%-*s", user_width, user_cell)
+    uid_part = sprintf("%*s", uid_width, uid_cell)
+    upload_part = sprintf("%*s", upload_rate_width, upload_rate_cell)
+    download_part = sprintf("%*s", download_rate_width, download_rate_cell)
+    active_part = sprintf("%*s", active_width, active_cell)
+    if (table_history_detail) {
+        return identity_color user_part color_reset " " \
+            identity_color uid_part color_reset " " \
+            color_upload upload_part color_reset " " \
+            color_download download_part color_reset " " \
+            identity_color active_part color_reset
+    }
+    history_part = styled_dual_history(history_key, history_width)
+    return identity_color user_part color_reset " " \
+        identity_color uid_part color_reset " " \
+        color_upload upload_part color_reset " " \
+        color_download download_part color_reset " " \
+        history_part " " identity_color active_part color_reset
+}
+
 function print_wrapped_command(uid, command_index, text, branch, continuation,
         available, chunk, first, command_color, metrics, cut_position,
         pid_label, first_prefix, metrics_left, metrics_right) {
@@ -495,10 +534,18 @@ function print_fixed_full_command(uid, command_index, text, branch, pid_label,
 
 function print_command_placeholder(uid, detailed, slot, message) {
     set_hit("command_zone", uid, "", slot)
-    message = slot == 1 ? "  No additional flowing commands in this interval." : ""
+    if (slot == 1 && !command_details_visible(uid)) {
+        message = "  Command details hidden; run netwtop as root to inspect this user."
+    } else {
+        message = slot == 1 ? "  No additional flowing commands in this interval." : ""
+    }
     box_line(message, color_dim)
     if (detailed) box_line("", color_dim)
     clear_hit()
+}
+
+function command_details_visible(uid) {
+    return show_all_commands || (current_uid != "" && (uid + 0) == (current_uid + 0))
 }
 
 function all_command_row_color(uid, command_index, default_color) {
@@ -587,6 +634,11 @@ FILENAME == ARGV[1] {
 
 FILENAME == ARGV[2] {
     uid = $1
+    # accounting.sh enforces this boundary before rendering. Keep the same
+    # check here so a stale or externally supplied command file cannot expose
+    # another user's command line in an unprivileged frame.
+    if (show_all_commands != "" && !(show_all_commands + 0) &&
+            (uid + 0) != (current_uid + 0)) next
     display_command = terminal_safe_text($3)
     if ($3 != "[unattributed]") attributed_active += $8
     else unattributed_active += $8
@@ -636,6 +688,8 @@ END {
     }
 
     content_width = ui_width - 4
+    if (show_all_commands == "") show_all_commands = 1
+    show_all_commands = int(show_all_commands + 0)
     display_time = terminal_safe_text(display_time)
     host_name = terminal_safe_text(host_name)
     interface_name = terminal_safe_text(interface_name)
@@ -725,7 +779,9 @@ END {
         ? sprintf("%.1f%%", upload_coverage) : "n/a"
     download_coverage_text = interface_rx_delta > 0 \
         ? sprintf("%.1f%%", download_coverage) : "n/a"
+    command_scope = show_all_commands ? "all" : "self"
     status_left = "Users: " (user_count + 0) "  Commands: " (flowing_command_count + 0) \
+        " (" command_scope ")" \
         "  PID: " sprintf("%.1f%%", attribution_percent)
     if (attribution_device_scoped) {
         status_right = "Accounted: UP " upload_coverage_text \
@@ -823,9 +879,14 @@ END {
             }
 
             username = user_name[expanded_user_index]
-            focus_label = sprintf("%s  Commands %d-%d/%d  %s", checked_panel_title,
-                expanded_command_start, expanded_command_end,
-                all_command_count[uid] + 0, username)
+            if (command_details_visible(uid)) {
+                focus_label = sprintf("%s  Commands %d-%d/%d  %s", checked_panel_title,
+                    expanded_command_start, expanded_command_end,
+                    all_command_count[uid] + 0, username)
+            } else {
+                focus_label = sprintf("%s  Commands hidden  %s", checked_panel_title,
+                    username)
+            }
             border("top")
             box_line(left_right(focus_label, session_label, content_width),
                 user_scope_color)
@@ -845,15 +906,24 @@ END {
             if (two_column_layout) {
                 user_line = split_identity_row(user_label, uid,
                     user_active[expanded_user_index])
+                box_line(user_line, selected_pid == "" ? color_selected : color_user,
+                    content_width)
             } else {
                 user_line = table_row(user_label, uid,
                     human_bytes(user_upload_delta[expanded_user_index] / elapsed) "/s",
                     human_bytes(user_download_delta[expanded_user_index] / elapsed) "/s",
                     dual_history("U:" uid, history_width),
                     user_active[expanded_user_index])
+                if (selected_pid == "") {
+                    box_line(user_line, color_selected, content_width)
+                } else {
+                    user_line = styled_table_row(user_label, uid,
+                        human_bytes(user_upload_delta[expanded_user_index] / elapsed) "/s",
+                        human_bytes(user_download_delta[expanded_user_index] / elapsed) "/s",
+                        "U:" uid, user_active[expanded_user_index], color_user)
+                    box_line(user_line, "", content_width)
+                }
             }
-            box_line(user_line, selected_pid == "" ? color_selected : color_user,
-                content_width)
             clear_hit()
             if (history_detail) {
                 print_history_section("U:" uid, 2,
@@ -876,13 +946,14 @@ END {
             border("heavy")
             if (two_column_layout) {
                 total_line = split_identity_row(accounted_label, "-", active_total + 0)
+                box_line(total_line, color_total, content_width)
             } else {
-                total_line = table_row(accounted_label, "-",
+                total_line = styled_table_row(accounted_label, "-",
                     human_bytes(upload_delta_total / elapsed) "/s",
                     human_bytes(download_delta_total / elapsed) "/s",
-                    dual_history("A", history_width), active_total + 0)
+                    "A", active_total + 0, color_total)
+                box_line(total_line, "", content_width)
             }
-            box_line(total_line, color_total, content_width)
             if (history_detail) {
                 print_history_section("A", 2, upload_delta_total / elapsed,
                     download_delta_total / elapsed, 0)
@@ -968,18 +1039,28 @@ END {
                 user_label = sprintf("[ ] [%d/%d] %s", user_rank[user_index], user_count,
                     username)
                 set_hit("user", uid, "", 0)
-                user_color = selected_uid != "" && uid == selected_uid && selected_pid == "" \
-                    ? color_selected : color_user
+                user_is_selected = selected_uid != "" && uid == selected_uid && \
+                    selected_pid == ""
                 if (two_column_layout) {
                     user_line = split_identity_row(user_label, uid,
                         user_active[user_index])
+                    box_line(user_line, user_is_selected ? color_selected : color_user,
+                        content_width)
                 } else {
                     user_line = table_row(user_label, uid,
                         human_bytes(user_upload_delta[user_index] / elapsed) "/s",
                         human_bytes(user_download_delta[user_index] / elapsed) "/s",
                         dual_history("U:" uid, history_width), user_active[user_index])
+                    if (user_is_selected) {
+                        box_line(user_line, color_selected, content_width)
+                    } else {
+                        user_line = styled_table_row(user_label, uid,
+                            human_bytes(user_upload_delta[user_index] / elapsed) "/s",
+                            human_bytes(user_download_delta[user_index] / elapsed) "/s",
+                            "U:" uid, user_active[user_index], color_user)
+                        box_line(user_line, "", content_width)
+                    }
                 }
-                box_line(user_line, user_color, content_width)
                 clear_hit()
                 if (user_history_detail) {
                     print_history_section("U:" uid, 2,
@@ -1024,13 +1105,14 @@ END {
         border("heavy")
         if (two_column_layout) {
             total_line = split_identity_row(accounted_label, "-", active_total + 0)
+            box_line(total_line, color_total, content_width)
         } else {
-            total_line = table_row(accounted_label, "-",
+            total_line = styled_table_row(accounted_label, "-",
                 human_bytes(upload_delta_total / elapsed) "/s",
                 human_bytes(download_delta_total / elapsed) "/s",
-                dual_history("A", history_width), active_total + 0)
+                "A", active_total + 0, color_total)
+            box_line(total_line, "", content_width)
         }
-        box_line(total_line, color_total, content_width)
         if (history_detail) {
             print_history_section("A", 2, upload_delta_total / elapsed,
                 download_delta_total / elapsed, 0)
@@ -1076,13 +1158,14 @@ END {
             user_label = sprintf("[%d/%d] %s", user_rank[user_index], user_count, username)
             if (two_column_layout) {
                 user_line = split_identity_row(user_label, uid, user_active[user_index])
+                box_line(user_line, color_user, content_width)
             } else {
-                user_line = table_row(user_label, uid,
+                user_line = styled_table_row(user_label, uid,
                     human_bytes(user_upload_delta[user_index] / elapsed) "/s",
                     human_bytes(user_download_delta[user_index] / elapsed) "/s",
-                    dual_history("U:" uid, history_width), user_active[user_index])
+                    "U:" uid, user_active[user_index], color_user)
+                box_line(user_line, "", content_width)
             }
-            box_line(user_line, color_user, content_width)
             if (history_detail) {
                 print_history_section("U:" uid, 2,
                     user_upload_delta[user_index] / elapsed,
@@ -1113,13 +1196,14 @@ END {
         border("heavy")
         if (two_column_layout) {
             total_line = split_identity_row(accounted_label, "-", active_total + 0)
+            box_line(total_line, color_total, content_width)
         } else {
-            total_line = table_row(accounted_label, "-",
+            total_line = styled_table_row(accounted_label, "-",
                 human_bytes(upload_delta_total / elapsed) "/s",
                 human_bytes(download_delta_total / elapsed) "/s",
-                dual_history("A", history_width), active_total + 0)
+                "A", active_total + 0, color_total)
+            box_line(total_line, "", content_width)
         }
-        box_line(total_line, color_total, content_width)
         if (history_detail) {
             print_history_section("A", 2, upload_delta_total / elapsed,
                 download_delta_total / elapsed, 0)

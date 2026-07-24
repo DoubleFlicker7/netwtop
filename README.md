@@ -65,10 +65,12 @@ All program output is in English.
   counters rather than estimating total traffic from visible processes.
 - **Live interface selection:** use Left/Right to cycle physical, virtual,
   bridge, and loopback interfaces without restarting the monitor.
-- **Per-user attribution:** groups observable traffic by local username and
-  keeps `root` pinned above a stable lexical user order.
-- **Per-command detail:** displays PID, command line, active-entry count, and
-  current Upload/Download rates below each user.
+- **Per-user attribution:** groups observable traffic by regular local account,
+  excludes system service UIDs, and keeps `root` pinned above a stable lexical
+  user order.
+- **Permission-aware command detail:** displays PID, command line, active-entry
+  count, and current Upload/Download rates for the current user, or for every
+  visible regular user when `netwtop` runs as root.
 - **Traffic ranks:** shows `[rank/users]` independently of the fixed user order.
 - **Rolling history:** draws Braille graphs for the selected interface, every
   user, and accounted application traffic.
@@ -369,6 +371,20 @@ User presentation is stable:
 2. Other users are sorted by username in the C locale.
 3. `[rank/users]` changes with current combined traffic without moving rows.
 
+The effective identity comes from `id -u` and `id -un`, not from the `USER` or
+`LOGNAME` environment variables. The current user always has a row, including
+samples with no observable network entry; in that case its rates and `ACTIVE`
+value are zero. A root invocation through `sudo` also retains the invoking
+user's row.
+
+The default account scope includes `root`, the current/invoking user, and UIDs
+at or above the platform's regular-user threshold. Linux reads `UID_MIN` from
+`/etc/login.defs` (normally `1000`); macOS defaults to `500`. Consequently,
+service identities such as `_apt` and `systemd-resolve` do not appear as users
+when root exposes their sockets. Their bytes remain part of the authoritative
+interface totals but are intentionally excluded from user rows and
+`ACCOUNTED`.
+
 Each user block contains username, UID, current directional rates, rolling
 history, `ACTIVE`, and a fixed command viewport. `ACTIVE` is the number of
 socket/process entries currently reported for that user; it is not a rate.
@@ -376,6 +392,13 @@ socket/process entries currently reported for that user; it is not a rate.
 Each command row contains PID, command line, Upload/Download rates, and active
 entry count. `PID -` and `[unattributed]` mean the backend observed traffic but
 the operating system did not expose a usable process owner or command.
+
+Command visibility is deliberately narrower than aggregate visibility. A
+normal invocation retains the Upload/Download totals and histories of every
+visible regular user, but emits command rows only for its own effective UID.
+The fixed viewport of another user says that command details are hidden. A
+root invocation emits the command rows of every visible regular user for which
+the backend can resolve ownership.
 
 `ACCOUNTED (ALL IFACES)` is the sum of displayed application-attribution
 traffic. It is not the total of the selected interface and should not be used
@@ -410,11 +433,15 @@ Without root:
 
 - Interface totals are normally fully readable.
 - The invoking user's attributable PIDs and commands are normally visible.
-- Other users may appear as `[unattributed]` with `PID -`.
+- Other regular users retain aggregate Upload/Download rates and histories,
+  but their PID and command rows are intentionally hidden.
 - Hardened systems can restrict additional socket or process details.
 
 With root on Linux, `ss -p` can normally expose socket owners for all users in
-the current network namespace. Root does not eliminate sampling gaps, resolve
+the current network namespace, so `netwtop` displays command detail for all
+visible regular users. When a PID is resolved, its effective process UID takes
+precedence over the socket UID. A network command executed through `sudo` is
+therefore charged to `root`. Root does not eliminate sampling gaps, resolve
 shared sockets perfectly, or expose other network namespaces automatically.
 
 Command lines can contain tokens, URLs, or other sensitive arguments. Treat
@@ -441,7 +468,9 @@ Linux samples `ss -tinepH` cumulative TCP values:
 - Upload uses acknowledged application bytes.
 - Download uses received application bytes.
 - `ss -p` supplies process ownership where permitted.
-- `ps` resolves command lines.
+- `ps` resolves command lines and effective process UIDs. The process UID is
+  authoritative whenever the PID is visible; otherwise attribution falls back
+  to the UID reported for the socket.
 - The scope is visible TCP connections across all interfaces in the current
   network namespace.
 
@@ -480,6 +509,9 @@ panel or `interface_*_bytes_per_second` fields, not with `ACCOUNTED`.
 - The selected interface and application attribution can have different scopes.
 - Root improves owner visibility but cannot turn sampled shell accounting into
   complete eBPF, cgroup, or firewall accounting.
+- The regular-user UID threshold is a platform convention; unusual deployments
+  with human accounts below `UID_MIN` are represented only when that account is
+  the current user or the original user recorded by `sudo`.
 - Other Unix families require dedicated interface and application backends.
 
 Complete wire-level accounting by UID—including headers, retransmissions,
@@ -544,8 +576,6 @@ test fixtures:
 .
 ├── bin/
 │   └── netwtop                    Main executable and sampling loop
-├── compat/
-│   └── network_monitor.sh         Legacy development command
 ├── docs/
 │   ├── README.md                  Documentation index
 │   ├── ARCHITECTURE.md            Data flow and renderer invariants

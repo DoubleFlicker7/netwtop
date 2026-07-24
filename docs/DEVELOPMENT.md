@@ -6,7 +6,6 @@
 .
 ├── README.md
 ├── bin/                       Executable entry point
-├── compat/                    Legacy development launchers
 ├── docs/                      User, architecture, and contributor documentation
 │   └── packaging/            Debian and APT publication guides
 ├── install.sh                 User-prefix installer
@@ -39,13 +38,8 @@ production procedure for publishing from the project's own repository is in
 ./netwtop --help
 ```
 
-The legacy pre-rename entry point is kept under `compat/`:
-
-```sh
-./compat/network_monitor.sh --help
-```
-
-New documentation and examples should use `netwtop`.
+The supported command name is `netwtop`; no legacy command alias is installed
+or maintained.
 
 ## Automated tests
 
@@ -98,6 +92,11 @@ check when access to other users' socket owners matters:
 sudo ./netwtop
 ```
 
+Compare both permission modes before a release. A normal run must retain other
+regular users' aggregate rows without exposing their commands. A root run must
+retain commands for all visible regular users, and a transfer process launched
+through `sudo` must appear under UID 0.
+
 ## Installation testing
 
 The installer supports a staging prefix, which avoids modifying the normal
@@ -125,6 +124,11 @@ and syntax tests. When adding a module, add its relative path to
 - Treat usernames and command lines as untrusted terminal input.
 - Preserve the distinction between authoritative interface traffic and the
   lower application-attribution subset.
+- Preserve both visibility filters: aggregate rows include `root`, the
+  current/invoking UID, and regular-account UIDs; command rows include all of
+  those only for root and otherwise include the current effective UID alone.
+- Resolve runtime identity through `id`; do not use inherited `USER`, `LOGNAME`,
+  or home-directory names for attribution or session labels.
 - Never invoke `sudo` or silently elevate privileges.
 - Keep OS-specific process parsing inside `src/backends/` and interface-counter
   logic inside `src/core/interfaces.sh`.

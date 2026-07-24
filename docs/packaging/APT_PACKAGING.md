@@ -153,7 +153,6 @@ README.md
 以下开发文件通常不需要安装：
 
 - 根目录的开发启动器 `netwtop`。
-- `compat/`。
 - `tests/` 和测试 fixture。
 - `docs/DEVELOPMENT.md`，除非希望把开发文档也放入二进制包。
 

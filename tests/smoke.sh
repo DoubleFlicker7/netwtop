@@ -9,7 +9,6 @@ for shell_file in \
     netwtop \
     install.sh \
     bin/netwtop \
-    compat/network_monitor.sh \
     src/manifest.sh
 do
     sh -n "$PROJECT_ROOT/$shell_file" || exit 1
@@ -20,7 +19,6 @@ for module in $NETWTOP_RUNTIME_MODULES; do
 done
 
 "$PROJECT_ROOT/netwtop" --help >/dev/null || exit 1
-"$PROJECT_ROOT/compat/network_monitor.sh" --help >/dev/null || exit 1
 "$PROJECT_ROOT/netwtop" --help | grep -q 'default: 0.5' || exit 1
 "$PROJECT_ROOT/netwtop" --help | grep -q -- '--two-column-width' || exit 1
 for documented_option in \
@@ -47,7 +45,22 @@ if "$PROJECT_ROOT/netwtop" --interval 0.09 --format jsonl --count 1 \
 fi
 NETWTOP_MODULE_ROOT=$PROJECT_ROOT/src
 . "$PROJECT_ROOT/src/runtime/runtime.sh"
+. "$PROJECT_ROOT/src/backends/common.sh"
+. "$PROJECT_ROOT/src/backends/linux.sh"
 . "$PROJECT_ROOT/src/core/interfaces.sh"
+. "$PROJECT_ROOT/src/core/accounting.sh"
+EXPECTED_CURRENT_UID=$(id -u) || exit 1
+EXPECTED_CURRENT_USER=$(id -un) || exit 1
+ORIGINAL_USER=${USER-}
+ORIGINAL_LOGNAME=${LOGNAME-}
+USER=stale-developer-user
+LOGNAME=stale-developer-user
+OS_NAME=$(uname -s) || exit 1
+configure_user_scope
+[ "$CURRENT_UID" = "$EXPECTED_CURRENT_UID" ] || exit 1
+[ "$CURRENT_USER" = "$EXPECTED_CURRENT_USER" ] || exit 1
+USER=$ORIGINAL_USER
+LOGNAME=$ORIGINAL_LOGNAME
 is_valid_interval 0.1 || exit 1
 is_valid_interval 0.5 || exit 1
 is_valid_interval 1.5 || exit 1
@@ -120,10 +133,114 @@ NETWTOP_PREFIX=$INSTALL_TEST "$PROJECT_ROOT/install.sh" >/dev/null || exit 1
 [ -s "$INSTALL_TEST/lib/netwtop/runtime/runtime.sh" ] || exit 1
 [ -s "$INSTALL_TEST/lib/netwtop/output/formats.sh" ] || exit 1
 [ ! -e "$INSTALL_TEST/lib/netwtop/runtime.sh" ] || exit 1
+
+UID_NAMES=$INSTALL_TEST/runtime-uid-names.tsv
+RAW=$INSTALL_TEST/runtime-identity.tmp
+build_uid_names
+LC_ALL=C awk -F '\t' \
+    -v expected_uid="$EXPECTED_CURRENT_UID" \
+    -v expected_user="$EXPECTED_CURRENT_USER" '
+    $1 == expected_uid { matched = ($2 == expected_user); exit }
+    END { exit !matched }
+' "$UID_NAMES" || exit 1
+
+ROWS=$INSTALL_TEST/visible-user-rows.tsv
+COMMAND_ROWS=$INSTALL_TEST/visible-command-rows.tsv
+RAW=$INSTALL_TEST/visible-user-filter.tmp
+LOGIN_UID_MIN=1000
+CURRENT_UID=1011
+INVOKING_UID=1011
+SHOW_ALL_COMMANDS=0
+printf '0\t1\t1\t1\t1\t1\n101\t1\t1\t1\t1\t1\n105\t1\t1\t1\t1\t1\n1000\t1\t1\t1\t1\t1\n1011\t1\t1\t1\t1\t1\n' >"$ROWS"
+printf '0\t1\troot-cmd\t1\t1\t1\t1\t1\n101\t2\tresolver-cmd\t1\t1\t1\t1\t1\n105\t3\tapt-cmd\t1\t1\t1\t1\t1\n1000\t4\tother-user-cmd\t1\t1\t1\t1\t1\n1011\t5\tcurrent-user-cmd\t1\t1\t1\t1\t1\n' >"$COMMAND_ROWS"
+filter_visible_user_rows
+LC_ALL=C awk -F '\t' '
+    $1 == 101 || $1 == 105 { invalid = 1 }
+    $1 == 0 || $1 == 1000 || $1 == 1011 { seen[$1] = 1 }
+    END { exit invalid || !(seen[0] && seen[1000] && seen[1011]) }
+' "$ROWS" || exit 1
+LC_ALL=C awk -F '\t' '
+    $1 != 1011 { invalid = 1 }
+    $1 == 1011 && $3 == "current-user-cmd" { current = 1 }
+    END { exit invalid || !current }
+' "$COMMAND_ROWS" || exit 1
+
+CURRENT_UID=0
+INVOKING_UID=1011
+SHOW_ALL_COMMANDS=1
+printf '0\t1\t1\t1\t1\t1\n101\t1\t1\t1\t1\t1\n1000\t1\t1\t1\t1\t1\n1011\t1\t1\t1\t1\t1\n' >"$ROWS"
+printf '0\t1\troot-cmd\t1\t1\t1\t1\t1\n101\t2\tresolver-cmd\t1\t1\t1\t1\t1\n1000\t4\tother-user-cmd\t1\t1\t1\t1\t1\n1011\t5\tinvoking-user-cmd\t1\t1\t1\t1\t1\n' >"$COMMAND_ROWS"
+filter_visible_user_rows
+LC_ALL=C awk -F '\t' '
+    $1 == 101 { invalid = 1 }
+    $1 == 0 || $1 == 1000 || $1 == 1011 { seen[$1] = 1 }
+    END { exit invalid || !(seen[0] && seen[1000] && seen[1011]) }
+' "$ROWS" || exit 1
+LC_ALL=C awk -F '\t' '
+    $1 == 101 { invalid = 1 }
+    $1 == 0 || $1 == 1000 || $1 == 1011 { seen[$1] = 1 }
+    END { exit invalid || !(seen[0] && seen[1000] && seen[1011]) }
+' "$COMMAND_ROWS" || exit 1
+
+PROCESS_MAP_TEST=$INSTALL_TEST/linux-process-map.tsv
+SOCKET_SNAPSHOT_TEST=$INSTALL_TEST/linux-socket-snapshot.txt
+PARSED_SNAPSHOT_TEST=$INSTALL_TEST/linux-parsed-snapshot.tsv
+printf '900\t0\t/usr/bin/curl https://example.invalid/file\n901\t1000\t/usr/bin/client\n' \
+    >"$PROCESS_MAP_TEST"
+printf 'ESTAB 0 0 192.0.2.1:40000 192.0.2.2:443 users:(("curl",pid=900,fd=3)) uid:1000 ino:77 sk:abc\n bbr bytes_acked:2048 bytes_received:4096\nESTAB 0 0 192.0.2.1:40001 192.0.2.2:443 uid:1000 ino:78 sk:def\n bbr bytes_acked:512 bytes_received:1024\n' \
+    >"$SOCKET_SNAPSHOT_TEST"
+parse_linux_snapshot "$PROCESS_MAP_TEST" "$SOCKET_SNAPSHOT_TEST" \
+    "$PARSED_SNAPSHOT_TEST"
+LC_ALL=C awk -F '\t' '
+    $1 == "abc:77" && $2 == 0 && $3 == 900 &&
+        $4 == "/usr/bin/curl https://example.invalid/file" &&
+        $5 == 2048 && $6 == 4096 { sudo_command = 1 }
+    $1 == "def:78" && $2 == 1000 && $3 == "-" &&
+        $4 == "[unattributed]" && $5 == 512 && $6 == 1024 { fallback = 1 }
+    END { exit !(sudo_command && fallback) }
+' "$PARSED_SNAPSHOT_TEST" || exit 1
+
+PREVIOUS=$INSTALL_TEST/empty-previous.tsv
+CURRENT=$INSTALL_TEST/empty-current.tsv
+TOTALS=$INSTALL_TEST/empty-user-totals.tsv
+COMMAND_TOTALS=$INSTALL_TEST/empty-command-totals.tsv
+ROWS=$INSTALL_TEST/seeded-user-rows.tsv
+COMMAND_ROWS=$INSTALL_TEST/seeded-command-rows.tsv
+SORTED_ROWS=$INSTALL_TEST/seeded-sorted-rows.tsv
+SORTED_COMMAND_ROWS=$INSTALL_TEST/seeded-sorted-command-rows.tsv
+UID_NAMES=$INSTALL_TEST/seeded-uid-names.tsv
+TABLE_ROWS=$INSTALL_TEST/seeded-table-rows.tsv
+NEXT_TOTALS=$INSTALL_TEST/seeded-next-totals.tsv
+NEXT_COMMAND_TOTALS=$INSTALL_TEST/seeded-next-command-totals.tsv
+RAW=$INSTALL_TEST/seeded-accounting.tmp
+CURRENT_UID=4242
+INVOKING_UID=4242
+SHOW_ALL_COMMANDS=0
+LOGIN_UID_MIN=1000
+: >"$PREVIOUS"
+: >"$CURRENT"
+: >"$TOTALS"
+: >"$COMMAND_TOTALS"
+printf '4242\tcurrent-test-user\n' >"$UID_NAMES"
+calculate_rows 1
+LC_ALL=C awk -F '\t' '
+    $1 == 4242 && $2 == 0 && $3 == 0 && $4 == 0 && $5 == 0 && $6 == 0 {
+        current_user = 1
+    }
+    END { exit !current_user }
+' "$ROWS" || exit 1
+grep -Fq "session_label=\"\$CURRENT_USER@\$HOST_NAME\"" \
+    "$PROJECT_ROOT/src/ui/table.sh" || exit 1
+
 grep -Fq "color_border=\$(printf '\\033[37m')" \
+    "$PROJECT_ROOT/src/ui/table.sh" || exit 1
+grep -Fq "color_user=\$(printf '\\033[90m')" \
     "$PROJECT_ROOT/src/ui/table.sh" || exit 1
 WHITE_BORDER=$(printf '\033[37m')
 CYAN_TITLE=$(printf '\033[1;36m')
+GRAY_USER=$(printf '\033[90m')
+GREEN_UPLOAD=$(printf '\033[32m')
+BLUE_DOWNLOAD=$(printf '\033[34m')
 COLOR_RESET=$(printf '\033[0m')
 LC_ALL=C awk -F '\t' \
     -v elapsed=1 -v refresh_interval=1 -v display_mode=compact \
@@ -134,6 +251,8 @@ LC_ALL=C awk -F '\t' \
     -v attribution_device_scoped=0 -v history_limit=120 -v host_name=test \
     -v session_label=test -v display_time=test \
     -v color_border="$WHITE_BORDER" -v color_title="$CYAN_TITLE" \
+    -v color_user="$GRAY_USER" -v color_upload="$GREEN_UPLOAD" \
+    -v color_download="$BLUE_DOWNLOAD" \
     -v color_reset="$COLOR_RESET" \
     -f "$PROJECT_ROOT/src/ui/table.awk" \
     "$PROJECT_ROOT/tests/fixtures/names.tsv" \
@@ -146,13 +265,42 @@ grep -Fq "${WHITE_BORDER}│${COLOR_RESET} ${CYAN_TITLE}NETWTOP" \
 grep -Fq "${COLOR_RESET}${WHITE_BORDER} │ ${COLOR_RESET}" \
     "$SMOKE_OUTPUT" || exit 1
 grep -Fq 'Device: test0 [2/4]' "$SMOKE_OUTPUT" || exit 1
+grep -Fq "$GRAY_USER" "$SMOKE_OUTPUT" || exit 1
+grep -Fq "$GREEN_UPLOAD" "$SMOKE_OUTPUT" || exit 1
+grep -Fq "$BLUE_DOWNLOAD" "$SMOKE_OUTPUT" || exit 1
+
+COMMAND_VISIBILITY_TEST=$INSTALL_TEST/ui-command-visibility.tsv
+printf '0\t900\troot-secret-command\t4096\t4096\t4096\t4096\t1\n1000\t123\t/usr/bin/current-user-client\t1024\t2048\t1024\t2048\t1\n' \
+    >"$COMMAND_VISIBILITY_TEST"
+LC_ALL=C awk -F '\t' \
+    -v elapsed=0.5 -v refresh_interval=0.5 -v display_mode=compact \
+    -v interactive_ui=1 -v table_scroll=0 -v command_view_size=2 \
+    -v show_all_commands=0 -v current_uid=1000 \
+    -v two_column_width=100 -v backend=test -v scope=test \
+    -v ui_width=120 -v ui_height=28 -v interface_name=test0 \
+    -v interface_index=1 -v interface_count=1 \
+    -v interface_rx_delta=0 -v interface_tx_delta=0 \
+    -v attribution_device_scoped=0 -v history_limit=120 -v host_name=test \
+    -v session_label=test -v display_time=test \
+    -f "$PROJECT_ROOT/src/ui/table.awk" \
+    "$PROJECT_ROOT/tests/fixtures/names.tsv" \
+    "$COMMAND_VISIBILITY_TEST" \
+    "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
+    "$PROJECT_ROOT/tests/fixtures/history.tsv" >"$SMOKE_OUTPUT" || exit 1
+grep -q 'Commands: 1 (self)' "$SMOKE_OUTPUT" || exit 1
+grep -q 'Command details hidden; run netwtop as root' "$SMOKE_OUTPUT" || exit 1
+grep -q 'PID 123' "$SMOKE_OUTPUT" || exit 1
+if grep -q 'root-secret-command' "$SMOKE_OUTPUT"; then exit 1; fi
+
 LC_ALL=C awk -F '\t' \
     -v elapsed=1 -v refresh_interval=1 -v display_mode=compact \
     -v backend=test -v scope=test -v ui_width=80 -v ui_height=24 \
     -v interface_name=test0 -v interface_rx_delta=209715200 \
     -v interface_tx_delta=157286400 -v attribution_device_scoped=0 \
     -v history_limit=60 -v host_name=test -v session_label=test \
-    -v display_time=test -f "$PROJECT_ROOT/src/ui/table.awk" \
+    -v display_time=test -v color_user="$GRAY_USER" \
+    -v color_upload="$GREEN_UPLOAD" -v color_download="$BLUE_DOWNLOAD" \
+    -v color_reset="$COLOR_RESET" -f "$PROJECT_ROOT/src/ui/table.awk" \
     "$PROJECT_ROOT/tests/fixtures/names.tsv" \
     "$PROJECT_ROOT/tests/fixtures/commands.tsv" \
     "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
@@ -163,6 +311,13 @@ grep -q 'MAX' "$SMOKE_OUTPUT" || exit 1
 grep -q 'UP HISTORY' "$SMOKE_OUTPUT" || exit 1
 grep -q 'HISTORY UP|DN' "$SMOKE_OUTPUT" || exit 1
 grep -q 'ACCOUNTED' "$SMOKE_OUTPUT" || exit 1
+LC_ALL=C awk -v gray="$GRAY_USER" -v green="$GREEN_UPLOAD" \
+    -v blue="$BLUE_DOWNLOAD" '
+    index($0, "root") && index($0, gray) && index($0, green) && index($0, blue) {
+        correctly_colored_user_row = 1
+    }
+    END { exit !correctly_colored_user_row }
+' "$SMOKE_OUTPUT" || exit 1
 [ "$(wc -l <"$SMOKE_OUTPUT")" -le 24 ] || exit 1
 
 LC_ALL=C awk -F '\t' \

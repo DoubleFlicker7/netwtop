@@ -34,10 +34,10 @@ Backends:
   Linux   sysfs interface counters; ss for user/command attribution
   macOS   interface counters; nettop for user/command attribution
 
-No privilege escalation is attempted. Root is normally not required, but a
-hardened host may restrict access to system-wide network statistics. On Linux,
-root is required for complete command attribution across all users; inaccessible
-socket owners are grouped under [unattributed].
+No privilege escalation is attempted. As a normal user, command details are
+shown only for the current UID while other regular users retain aggregate rates.
+Root enables command details for all visible regular users. Inaccessible socket
+owners are grouped under [unattributed] when their details are permitted.
 EOF
 }
 
@@ -153,7 +153,7 @@ validate_options() {
 }
 
 validate_commands() {
-    for required_command in uname awk sort cut ps date sleep mktemp wc cat mv rm rmdir; do
+    for required_command in uname awk sort cut ps id date sleep mktemp wc cat mv rm rmdir; do
         command -v "$required_command" >/dev/null 2>&1 \
             || fail "Required command not found: $required_command"
     done
@@ -165,7 +165,7 @@ detect_platform() {
     case $OS_NAME in
         Linux)
             BACKEND='Linux sysfs + ss'
-            SCOPE='Selected-interface RX/TX; all-interface TCP attribution'
+            SCOPE='Selected-interface RX/TX; regular-user all-interface TCP attribution'
             ATTRIBUTION_DEVICE_SCOPED=0
             INTERFACE_FORCE_FALLBACK=0
             command -v ss >/dev/null 2>&1 \
@@ -173,7 +173,7 @@ detect_platform() {
             ;;
         Darwin)
             BACKEND='macOS netstat + nettop'
-            SCOPE='Interface RX/TX; all-interface TCP/UDP attribution'
+            SCOPE='Interface RX/TX; regular-user all-interface TCP/UDP attribution'
             ATTRIBUTION_DEVICE_SCOPED=0
             INTERFACE_FORCE_FALLBACK=1
             [ -x /usr/bin/nettop ] \

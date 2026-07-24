@@ -29,6 +29,11 @@ rates. Socket or process counter differences are grouped first by command and
 then by UID. Those two data sets intentionally remain separate because
 per-process counters cannot account for every interface byte.
 
+Runtime identity is resolved once with `id -u` and `id -un`; display code never
+uses `USER` or `LOGNAME` as an authority. Accounting seeds the effective UID,
+plus the invoking UID for a sudo session, so an idle current user remains
+visible with zero rates even when no socket row is observable.
+
 ## Modules
 
 | Path | Responsibility |
@@ -105,6 +110,20 @@ selected by the backend module:
   application detail uses `ss` TCP counters in the current network namespace.
 - macOS interface totals use `netstat`. Application detail uses the built-in
   `nettop` process counters for TCP and UDP.
+
+Before aggregation is exposed to the UI or machine-readable formats, user rows
+are restricted to `root`, the current/invoking UID, and regular-account UIDs.
+Linux obtains the threshold from `UID_MIN` in `/etc/login.defs` with a fallback
+of 1000; macOS uses 500. This prevents system service identities from being
+presented as interactive users while keeping their bytes in the authoritative
+interface counters.
+
+Command rows pass through a second permission filter. Effective UID 0 retains
+commands for every visible regular account. Any other effective UID retains
+only its own command rows, while the other users' aggregate rows remain in the
+table. On Linux, a PID resolved through `ss -p` is joined to the effective UID
+reported by `ps`; that process UID overrides the socket UID so a command
+executed through `sudo` is attributed to root.
 
 When an application backend is not device-scoped, the renderer treats it as a
 separate global data domain: the top status and lower title explicitly say
