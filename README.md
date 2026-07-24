@@ -1,4 +1,9 @@
-# netwtop ![POSIX Shell](https://img.shields.io/badge/shell-POSIX-brightgreen) ![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue) [![GitHub stars](https://img.shields.io/github/stars/DoubleFlicker7/netwtop?label=stars&logo=github)](https://github.com/DoubleFlicker7/netwtop/stargazers) [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20GPL--3.0-blue)](#license)
+# netwtop
+
+![POSIX Shell](https://img.shields.io/badge/shell-POSIX-brightgreen)
+![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue)
+[![GitHub stars](https://img.shields.io/github/stars/DoubleFlicker7/netwtop?label=stars&logo=github)](https://github.com/DoubleFlicker7/netwtop/stargazers)
+[![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20GPL--3.0-blue)](#license)
 
 An interactive per-user network traffic monitor for Unix terminals.
 
@@ -14,35 +19,43 @@ All program output is in English.
 
 ### Table of Contents
 
-- [Features](#features)
-- [Requirements](#requirements)
-  - [Linux](#linux)
-  - [macOS](#macos)
-  - [Terminal](#terminal)
-- [Installation](#installation)
-  - [Run from a checkout](#run-from-a-checkout)
-  - [Install for the current user](#install-for-the-current-user)
-  - [Install to another prefix](#install-to-another-prefix)
-- [Usage](#usage)
-  - [Resource monitor](#resource-monitor)
-  - [Command-line options](#command-line-options)
-  - [Keybindings](#keybindings)
-  - [Machine-readable output](#machine-readable-output)
-- [Understanding the dashboard](#understanding-the-dashboard)
-  - [Interface traffic](#interface-traffic)
-  - [User and command traffic](#user-and-command-traffic)
-  - [Responsive layout](#responsive-layout)
-- [Privileges](#privileges)
-- [Accounting model](#accounting-model)
-  - [Interface counters](#interface-counters)
-  - [Linux attribution](#linux-attribution)
-  - [macOS attribution](#macos-attribution)
-  - [Comparison with nload](#comparison-with-nload)
-- [Limitations](#limitations)
-- [Troubleshooting](#troubleshooting)
-- [Development](#development)
-- [Changelog](#changelog)
-- [License](#license)
+- [netwtop](#netwtop)
+    - [Table of Contents](#table-of-contents)
+  - [Features](#features)
+  - [Requirements](#requirements)
+    - [Linux](#linux)
+    - [macOS](#macos)
+    - [Terminal](#terminal)
+  - [Installation](#installation)
+    - [Run from a checkout](#run-from-a-checkout)
+    - [Install for the current user](#install-for-the-current-user)
+    - [Install to another prefix](#install-to-another-prefix)
+  - [Usage](#usage)
+    - [Resource monitor](#resource-monitor)
+    - [Command-line options](#command-line-options)
+    - [Keybindings](#keybindings)
+    - [Machine-readable output](#machine-readable-output)
+  - [Understanding the dashboard](#understanding-the-dashboard)
+    - [Interface traffic](#interface-traffic)
+    - [User and command traffic](#user-and-command-traffic)
+    - [Responsive layout](#responsive-layout)
+  - [Privileges](#privileges)
+  - [Accounting model](#accounting-model)
+    - [Interface counters](#interface-counters)
+    - [Linux attribution](#linux-attribution)
+    - [macOS attribution](#macos-attribution)
+    - [Comparison with nload](#comparison-with-nload)
+  - [Limitations](#limitations)
+  - [Troubleshooting](#troubleshooting)
+    - [Interval validation fails](#interval-validation-fails)
+    - [`ss` is missing on Linux](#ss-is-missing-on-linux)
+    - [Other users are unattributed](#other-users-are-unattributed)
+    - [nload reports more traffic than user rows](#nload-reports-more-traffic-than-user-rows)
+    - [A short window hides users](#a-short-window-hides-users)
+    - [The installed command still shows an old UI](#the-installed-command-still-shows-an-old-ui)
+  - [Development](#development)
+  - [Changelog](#changelog)
+  - [License](#license)
 
 ------
 
@@ -213,17 +226,17 @@ An absolute path is reliable when `sudo` does not preserve the user's `PATH`.
 
 Type `netwtop --help` to display the built-in reference.
 
-| Option | Default | Description |
-| --- | --- | --- |
-| `-i SECONDS`, `--interval SECONDS` | `0.5` | Sampling interval in 0.1-second steps. The minimum is `0.1`, equivalent to 10 Hz. |
-| `-d INTERFACE`, `--device INTERFACE` | Default-route interface | Initial interface for authoritative RX/TX counters. Left/Right can switch interfaces in the live UI. |
-| `-n NUMBER`, `--count NUMBER` | Unlimited | Stop after a positive number of reports. The initial baseline is not a report. |
-| `-m MODE`, `--mode MODE` | `auto` | Display mode: `auto`, `compact`, or `full`. |
-| `--two-column-width N` | `100` | Width at which each user's Upload and Download panels become side by side. Users always remain one vertical list. |
-| `-f FORMAT`, `--format FORMAT` | `table` | Output format: `table`, `csv`, or `jsonl`. |
-| `-o FILE`, `--output FILE` | Standard output | Write reports to `FILE`. Table mode replaces the file with the latest frame; CSV/JSONL preserve samples from the run. |
-| `--append` | Disabled | Append CSV/JSONL records to an existing output file. Requires `--output` and is invalid for table output. |
-| `-h`, `--help` | — | Show options, keys, backend details, and privilege guidance, then exit. |
+| Short option | Long option | Default | Description |
+| --- | --- | --- | --- |
+| `-i SECONDS` | `--interval SECONDS` | `0.5` | Sampling interval in 0.1-second steps. The minimum is `0.1`, equivalent to 10 Hz. |
+| `-d INTERFACE` | `--device INTERFACE` | Default-route interface | Initial interface for authoritative RX/TX counters. Left/Right can switch interfaces in the live UI. |
+| `-n NUMBER` | `--count NUMBER` | Unlimited | Stop after a positive number of reports. The initial baseline is not a report. |
+| `-m MODE` | `--mode MODE` | `auto` | Display mode: `auto`, `compact`, or `full`. |
+| — | `--two-column-width N` | `100` | Width at which each user's Upload and Download panels become side by side. Users always remain one vertical list. |
+| `-f FORMAT` | `--format FORMAT` | `table` | Output format: `table`, `csv`, or `jsonl`. |
+| `-o FILE` | `--output FILE` | Standard output | Write reports to `FILE`. Table mode replaces the file with the latest frame; CSV/JSONL preserve samples from the run. |
+| — | `--append` | Disabled | Append CSV/JSONL records to an existing output file. Requires `--output` and is invalid for table output. |
+| `-h` | `--help` | — | Show options, keys, backend details, and privilege guidance, then exit. |
 
 Invalid values are rejected before sampling. This includes intervals below
 `0.1`, zero counts, unknown modes or formats, nonexistent interfaces, and
