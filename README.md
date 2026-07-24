@@ -1,394 +1,274 @@
-# netwtop
+# netwtop ![POSIX Shell](https://img.shields.io/badge/shell-POSIX-brightgreen) ![Platforms](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue) [![GitHub stars](https://img.shields.io/github/stars/DoubleFlicker7/netwtop?label=stars&logo=github)](https://github.com/DoubleFlicker7/netwtop/stargazers) [![License](https://img.shields.io/badge/license-Apache--2.0%20OR%20GPL--3.0-blue)](#license)
 
-`netwtop` is an interactive per-user network traffic monitor for Linux and
-macOS. It shows authoritative interface Upload/Download rates, rolling history,
-traffic attributed to each local user, and the commands responsible for that
-traffic.
+An interactive per-user network traffic monitor for Unix terminals.
 
-The implementation uses POSIX shell, `awk`, and operating-system interfaces. It
-contains no Python code, installs no packages, does not invoke another
-third-party network monitor, and never attempts to elevate its own privileges.
+`netwtop` combines authoritative interface counters with best-effort user and
+command attribution. It continuously displays Upload and Download rates,
+rolling history, traffic rankings, PIDs, and command lines in a responsive
+terminal UI inspired by [nvitop](https://github.com/XuehaiPan/nvitop).
+
+The runtime is implemented with POSIX shell, `awk`, and operating-system
+interfaces. It contains no Python code, installs no dependencies, does not run
+another third-party network monitor, and never elevates its own privileges.
 All program output is in English.
 
-## Highlights
+### Table of Contents
 
-- Interface Upload and Download rates derived from kernel-maintained counters.
-- Per-user and per-command traffic attribution with PID and command line.
-- Stable lexical user order with `root` pinned first and a live traffic rank.
-- nvitop-inspired interactive UI with in-place differential repainting.
-- Responsive wide and narrow layouts with a configurable width breakpoint.
-- Rolling Braille history for interface, per-user, and accounted traffic.
-- Keyboard and mouse navigation, fixed command viewports, and checked-user mode.
-- CSV and JSONL output for automation.
-- 0.1-second minimum interval, equivalent to a maximum refresh rate of 10 Hz.
-- User-level installation under `$HOME/.local` by default.
-
-## Contents
-
-- [netwtop](#netwtop)
-  - [Highlights](#highlights)
-  - [Contents](#contents)
-  - [Platform support and requirements](#platform-support-and-requirements)
-    - [Linux](#linux)
-    - [macOS](#macos)
-    - [Terminal size](#terminal-size)
-  - [Installation](#installation)
-    - [Run directly from the checkout](#run-directly-from-the-checkout)
-    - [Install for the current user](#install-for-the-current-user)
-    - [Install to another prefix](#install-to-another-prefix)
-  - [Quick start](#quick-start)
+- [Features](#features)
+- [Requirements](#requirements)
+  - [Linux](#linux)
+  - [macOS](#macos)
+  - [Terminal](#terminal)
+- [Installation](#installation)
+  - [Run from a checkout](#run-from-a-checkout)
+  - [Install for the current user](#install-for-the-current-user)
+  - [Install to another prefix](#install-to-another-prefix)
+- [Usage](#usage)
+  - [Resource monitor](#resource-monitor)
   - [Command-line options](#command-line-options)
-  - [Interactive controls](#interactive-controls)
-  - [Understanding the dashboard](#understanding-the-dashboard)
-    - [Interface panel](#interface-panel)
-    - [User panel](#user-panel)
-    - [ACCOUNTED row](#accounted-row)
+  - [Keybindings](#keybindings)
+  - [Machine-readable output](#machine-readable-output)
+- [Understanding the dashboard](#understanding-the-dashboard)
+  - [Interface traffic](#interface-traffic)
+  - [User and command traffic](#user-and-command-traffic)
   - [Responsive layout](#responsive-layout)
-  - [Privileges and cross-user visibility](#privileges-and-cross-user-visibility)
-  - [Output formats](#output-formats)
-    - [Live table](#live-table)
-    - [CSV](#csv)
-    - [JSONL](#jsonl)
-  - [Accounting model](#accounting-model)
-    - [Interface totals](#interface-totals)
-    - [Linux application attribution](#linux-application-attribution)
-    - [macOS application attribution](#macos-application-attribution)
+- [Privileges](#privileges)
+- [Accounting model](#accounting-model)
+  - [Interface counters](#interface-counters)
+  - [Linux attribution](#linux-attribution)
+  - [macOS attribution](#macos-attribution)
   - [Comparison with nload](#comparison-with-nload)
-  - [Known limitations](#known-limitations)
-  - [Troubleshooting](#troubleshooting)
-    - [`Error: Interval must be at least 0.1 seconds...`](#error-interval-must-be-at-least-01-seconds)
-    - [`Linux backend requires the ss command from iproute2`](#linux-backend-requires-the-ss-command-from-iproute2)
-    - [Other users show `[unattributed]` or `PID -`](#other-users-show-unattributed-or-pid--)
-    - [nload shows more traffic than user rows](#nload-shows-more-traffic-than-user-rows)
-    - [Some users are not visible in a short window](#some-users-are-not-visible-in-a-short-window)
-    - [The command is not found after installation](#the-command-is-not-found-after-installation)
-  - [Project structure and development](#project-structure-and-development)
-  - [Changelog](#changelog)
-  - [License](#license)
+- [Limitations](#limitations)
+- [Troubleshooting](#troubleshooting)
+- [Development](#development)
+- [Changelog](#changelog)
+- [License](#license)
 
-## Platform support and requirements
+------
 
-`netwtop` explicitly supports Linux and macOS. Network accounting is not fully
-portable across Unix families because each kernel exposes different counters.
+## Features
+
+- **Authoritative interface rates:** reads kernel-maintained RX/TX byte
+  counters rather than estimating total traffic from visible processes.
+- **Live interface selection:** use Left/Right to cycle physical, virtual,
+  bridge, and loopback interfaces without restarting the monitor.
+- **Per-user attribution:** groups observable traffic by local username and
+  keeps `root` pinned above a stable lexical user order.
+- **Per-command detail:** displays PID, command line, active-entry count, and
+  current Upload/Download rates below each user.
+- **Traffic ranks:** shows `[rank/users]` independently of the fixed user order.
+- **Rolling history:** draws Braille graphs for the selected interface, every
+  user, and accounted application traffic.
+- **Interactive navigation:** supports keyboard and mouse selection, scrolling,
+  fixed command viewports, and a checked-user mode that reveals all commands
+  retained for one user during the session.
+- **Responsive UI:** automatically adapts graph height and switches between
+  compact and side-by-side Upload/Download layouts at a configurable width.
+- **Efficient repainting:** updates changed terminal rows in place, including
+  after a resize, instead of continuously printing new tables.
+- **Automation formats:** emits CSV or JSONL reports in addition to the live
+  terminal dashboard.
+- **Fast sampling:** accepts 0.1-second steps, up to a maximum refresh rate of
+  10 Hz; the default interval is 0.5 seconds.
+- **Portable implementation:** uses POSIX shell and `awk`, with separate Linux
+  and macOS collectors and no Python runtime or external monitoring library.
+
+------
+
+## Requirements
+
+`netwtop` supports Linux and macOS. Interface accounting is necessarily
+platform-specific because Unix kernels do not expose a single portable network
+counter API.
 
 ### Linux
 
-Required commands and interfaces:
+Required facilities:
 
 - A POSIX-compatible shell.
-- `awk`, `sort`, `cut`, `ps`, `date`, `sleep`, `mktemp`, `wc`, `cat`, `mv`,
-  `rm`, `rmdir`, `stty`, and `dd` for interactive mode.
+- Standard commands including `awk`, `sort`, `cut`, `ps`, `date`, `sleep`,
+  `mktemp`, `wc`, `stty`, and `dd`.
 - `ss` from iproute2 for socket and process attribution.
 - Readable `/sys/class/net/<interface>/statistics/{rx,tx}_bytes`, with
-  `/proc/net/dev` as the interface-counter fallback.
+  `/proc/net/dev` used as the interface-counter fallback.
 
-Linux interface totals use the same kernel interface-byte sources commonly
-used by tools such as nload. Application detail uses visible TCP socket counters
-reported by `ss` in the current network namespace.
+Linux interface totals come from the same kernel counter class commonly used
+by tools such as nload. User and command detail comes from TCP counters visible
+through `ss` in the current network namespace.
 
 ### macOS
 
-Required commands:
+Required facilities:
 
 - A POSIX-compatible shell and standard Unix utilities.
-- Built-in `/usr/sbin/netstat`, `/sbin/route`, and `/sbin/ifconfig` for interface
-  discovery and counters.
-- Built-in `/usr/bin/nettop` for per-process TCP/UDP byte counters.
+- Built-in `/usr/sbin/netstat`, `/sbin/route`, and `/sbin/ifconfig` commands.
+- Built-in `/usr/bin/nettop` for per-process TCP/UDP counters.
 
-The project command is named `netwtop` with a `w`; it does not conflict with the
-macOS system command `nettop`.
+The project command is named `netwtop` with a `w`, so it does not conflict with
+the macOS system command `nettop`.
 
-### Terminal size
+### Terminal
 
-The interactive dashboard requires at least 78 columns and 20 rows. Smaller
-terminals show a resize message instead of drawing a partial table.
+The interactive monitor requires at least 78 columns and 20 rows. A smaller
+terminal shows a resize message rather than a clipped or malformed frame.
+Unicode and ANSI color support are recommended for graphs and highlighting.
+
+------
 
 ## Installation
 
-### Run directly from the checkout
+### Run from a checkout
 
-No installation is required for development or a quick test:
+No installation is required for development or evaluation:
 
 ```sh
+git clone https://github.com/DoubleFlicker7/netwtop.git
+cd netwtop
 ./netwtop
 ```
 
 ### Install for the current user
 
-The installer copies the executable and module tree into `$HOME/.local`:
+The installer uses `$HOME/.local` by default:
 
 ```sh
 ./install.sh
 netwtop
 ```
 
-If `$HOME/.local/bin` is not already in `PATH`, add it in the startup file for
-your shell:
-
-```sh
-export PATH="$HOME/.local/bin:$PATH"
-```
-
-The installed files are:
+Installed files:
 
 ```text
 $HOME/.local/bin/netwtop
 $HOME/.local/lib/netwtop/
 ```
 
+If the command is not found, add the executable directory to `PATH`:
+
+```sh
+export PATH="$HOME/.local/bin:$PATH"
+hash -r
+```
+
 ### Install to another prefix
 
-Set `NETWTOP_PREFIX` to choose another destination:
+Set `NETWTOP_PREFIX` to a writable installation prefix:
 
 ```sh
 NETWTOP_PREFIX=/opt/netwtop ./install.sh
 ```
 
-The prefix must be writable. Installing to a system directory may require an
-administrator shell, but running the installer as root is not required for the
-normal user-level installation.
+Installing into a system-owned prefix may require an administrator shell.
+Normal user-level installation does not require root.
 
-## Quick start
+For Debian packages and project-owned APT repositories, see the
+[packaging documentation](docs/packaging/README.md).
+
+------
+
+## Usage
+
+### Resource monitor
+
+Start the interactive monitor:
 
 ```sh
-# Start the live dashboard with the default 0.5-second interval
 netwtop
+```
 
-# Monitor a specific interface
+Common examples:
+
+```sh
+# Start on a specific interface
 netwtop --device eth0
 
-# Refresh at 10 Hz, the supported maximum
+# Refresh every 0.1 seconds (10 Hz)
 netwtop --interval 0.1
 
 # Produce five reports and exit
 netwtop --interval 1 --count 5
 
-# Force the compact or full display mode
+# Force a compact or full UI
 netwtop --mode compact
 netwtop --mode full
 
-# Switch to the wide Upload/Download layout at 120 columns
+# Use the wide Upload/Download layout at 120 columns
 netwtop --two-column-width 120
 
-# Write machine-readable reports
+# Save machine-readable samples
 netwtop --format csv --output network-usage.csv
 netwtop --format jsonl --output network-usage.jsonl
-
-# Show the built-in help
-netwtop --help
 ```
 
-For complete cross-user process attribution on Linux, run the installed command
-with administrator privileges:
+For the most complete cross-user attribution on Linux, run the installed
+command with administrator privileges only when this access is required:
 
 ```sh
 sudo "$HOME/.local/bin/netwtop"
 ```
 
-Some `sudo` configurations do not preserve the user's `PATH`, so an absolute
-path is more reliable.
+An absolute path is reliable when `sudo` does not preserve the user's `PATH`.
 
-## Command-line options
+### Command-line options
+
+Type `netwtop --help` to display the built-in reference.
 
 | Option | Default | Description |
 | --- | --- | --- |
-| `-i SECONDS`, `--interval SECONDS` | `0.5` | Sampling interval in decimal seconds. Values must use 0.1-second steps and be at least `0.1`; the maximum refresh rate is 10 Hz. |
-| `-d INTERFACE`, `--device INTERFACE` | Default-route interface | Interface used for the authoritative top-level RX/TX counters. On Linux, the first non-loopback interface is used if no default route is found. macOS uses the interface from the default route, then the first non-loopback interface. |
-| `-n NUMBER`, `--count NUMBER` | Unlimited | Stop after this many reports. `NUMBER` must be a positive integer. The initial baseline snapshot is not a report. |
-| `-m MODE`, `--mode MODE` | `auto` | Select `auto`, `compact`, or `full`. Auto expands history only when the terminal has enough height. Compact prioritizes visible users and commands. Full requests detailed graphs but safely degrades if the window is too small. |
-| `--two-column-width N` | `100` | Terminal-width breakpoint for the wide Upload/Download layout. At or above `N`, each user has separate side-by-side Upload and Download panels. Below `N`, users use the compact table layout. Users themselves always remain one vertical list. |
-| `-f FORMAT`, `--format FORMAT` | `table` | Output format: `table`, `csv`, or `jsonl`. Table is interactive when no output file is specified. |
-| `-o FILE`, `--output FILE` | Standard output | Write reports to `FILE`. Table mode replaces the file on every sample so it contains only the latest frame. CSV and JSONL write report history for the current run. |
-| `--append` | Disabled | Append CSV or JSONL records to an existing output file. This option requires `--output` and is rejected for table output. A CSV header is added only when the target is empty. |
-| `-h`, `--help` | — | Print usage, options, interactive keys, backend information, and privilege guidance, then exit. |
+| `-i SECONDS`, `--interval SECONDS` | `0.5` | Sampling interval in 0.1-second steps. The minimum is `0.1`, equivalent to 10 Hz. |
+| `-d INTERFACE`, `--device INTERFACE` | Default-route interface | Initial interface for authoritative RX/TX counters. Left/Right can switch interfaces in the live UI. |
+| `-n NUMBER`, `--count NUMBER` | Unlimited | Stop after a positive number of reports. The initial baseline is not a report. |
+| `-m MODE`, `--mode MODE` | `auto` | Display mode: `auto`, `compact`, or `full`. |
+| `--two-column-width N` | `100` | Width at which each user's Upload and Download panels become side by side. Users always remain one vertical list. |
+| `-f FORMAT`, `--format FORMAT` | `table` | Output format: `table`, `csv`, or `jsonl`. |
+| `-o FILE`, `--output FILE` | Standard output | Write reports to `FILE`. Table mode replaces the file with the latest frame; CSV/JSONL preserve samples from the run. |
+| `--append` | Disabled | Append CSV/JSONL records to an existing output file. Requires `--output` and is invalid for table output. |
+| `-h`, `--help` | — | Show options, keys, backend details, and privilege guidance, then exit. |
 
-Invalid options fail before sampling begins. Examples include an interval below
-`0.1`, a zero count, an unknown mode or format, a nonexistent interface, and
-`--append` without a CSV/JSONL output file.
+Invalid values are rejected before sampling. This includes intervals below
+`0.1`, zero counts, unknown modes or formats, nonexistent interfaces, and
+`--append` without an appropriate output file.
 
-## Interactive controls
+### Keybindings
 
-Interactive controls do not require Enter.
+Interactive keys do not require Enter.
 
 | Key or action | Effect |
 | --- | --- |
-| `q`, `Q` | Quit and restore the previous terminal screen, cursor, mouse mode, and input settings. |
+| `q`, `Q` | Quit and restore the previous screen, cursor, mouse mode, and terminal input settings. |
 | `r`, `R` | Refresh immediately. |
 | `+`, `=` | Reduce the interval by 0.1 seconds, down to 0.1 seconds. |
 | `-` | Increase the interval by 0.1 seconds. |
-| `a` | Switch to Auto mode. |
-| `c` | Switch to Compact mode. |
-| `f` | Switch to Full mode. |
-| `Up`, `Down` | Move the highlight according to its current context. A highlighted user moves to the previous/next user; a highlighted command moves to the previous/next command under that user. The corresponding viewport scrolls automatically. |
-| `k`, `j` | Scroll the user table up/down. In checked-user mode, scroll that user's command list. |
-| `PageUp`, `PageDown` | Move by the current visible user or command page. |
+| `a`, `c`, `f` | Select Auto, Compact, or Full display mode. |
+| `Left`, `Right` | Select the previous or next detected network interface; selection wraps at both ends. |
+| `Up`, `Down` | Move the current user highlight, or move within the highlighted user's command list. |
+| `k`, `j` | Scroll the user table; in checked-user mode, scroll that user's commands. |
+| `PageUp`, `PageDown` | Scroll by the visible user or command page. |
 | `[`, `]` | Scroll the selected user's fixed command viewport. |
 | `Space`, `x` | Check or uncheck the selected user. |
-| Mouse click | Select a command, or check/uncheck a user by clicking its user row. |
-| Mouse wheel | Scroll the command viewport under the pointer; otherwise scroll the user table. |
+| Mouse click | Select a command, or check/uncheck a user from the user row. |
+| Mouse wheel | Scroll the command area under the pointer, otherwise scroll the user table. |
 
-Only one user can be checked at a time. A checked user occupies the complete
-lower panel and shows all commands observed for that user during the current
-session, including commands that are currently idle. Clicking the `[x]` row or
-pressing `Space`/`x` again restores the normal multi-user view.
+Only one user can be checked at a time. Checked-user mode gives the complete
+lower panel to that user and includes commands observed earlier in the current
+session. Pressing `Space`/`x` again, or clicking the checked `[x]` row, restores
+the normal multi-user view.
 
-The Up/Down keys follow the current highlight instead of merely moving the
-viewport. When a user row is highlighted, they move through the stable user
-order. When a command row is highlighted, they remain inside that user and move
-through the command list. Normal mode navigates commands carrying traffic in
-the current interval; checked-user mode also navigates commands retained from
-earlier samples. Crossing a viewport edge scrolls it just enough to keep the
-new highlight visible. Use `j`/`k` when the intention is to scroll without
-changing the highlighted object.
+Up/Down follows the current highlight. Use `j`/`k`, PageUp/PageDown, or the
+mouse wheel when the intention is to scroll without changing the selected
+object.
 
-## Understanding the dashboard
+### Machine-readable output
 
-### Interface panel
-
-The top panel reports:
-
-- Hostname and selected network interface.
-- Backend and current refresh interval.
-- Current interface Upload and Download rates.
-- Independent rate bars with a fixed 128 MiB/s scale.
-- Rolling directional history and visible maximum rates.
-- Number of users and commands observed by the attribution backend.
-- PID attribution percentage.
-
-When a current rate exceeds 128 MiB/s, its bar remains full and the value is
-shown as `MAX`. The underlying machine-readable rate is not capped.
-
-### User panel
-
-Users are ordered predictably:
-
-1. `root` is pinned to the first row when present.
-2. All other users use C-locale lexical username order.
-3. Order does not change when traffic changes.
-
-The prefix `[rank/users]` is independent of display order. For example,
-`[1/4]` means the user currently ranks first by combined Upload and Download
-among four displayed session users.
-
-Each user block includes:
-
-- Username and UID.
-- Current Upload and Download rates.
-- Per-direction rolling history.
-- `ACTIVE`, the number of socket or process entries currently observed for that
-  user by the platform backend. It is a count, not a percentage or rate.
-- A fixed two-slot command viewport in the normal interactive view.
-
-Each command row includes its PID, command line, current Upload/Download rates,
-and active-entry count. Commands with traffic during the current interval are
-shown in the normal view. Checked-user mode also includes commands observed
-earlier in the current session.
-
-`PID -` means the operating system did not expose a process owner for that
-traffic. `[unattributed]` groups traffic that could not be assigned to a visible
-command. This is expected for other users when running without root on many
-Linux systems.
-
-### ACCOUNTED row
-
-The highlighted `ACCOUNTED` footer is the sum of application traffic assigned
-to the displayed user data. It is not the selected interface's total traffic.
-
-The two figures can differ because interface counters also contain protocol
-overhead, retransmissions, UDP or non-TCP traffic not exposed by the Linux
-backend, short-lived connections, inaccessible processes, and traffic outside
-the backend's attribution scope. Compare other interface monitors with the top
-panel, not with `ACCOUNTED`.
-
-## Responsive layout
-
-Width and height are evaluated independently.
-
-At the default breakpoint of 100 columns or wider:
-
-- Users remain one full-width vertical list.
-- Each user has an identity row followed by an Upload panel on the left and a
-  Download panel on the right.
-- Compact mode gives each direction a one-line history sparkline.
-- Full mode expands both directions into matching multi-line graphs.
-
-Below the breakpoint:
-
-- Each user uses the compact full-width table row.
-- Upload and Download remain separate numeric columns.
-- Detailed history panels stack vertically when enough height is available.
-
-Use `--two-column-width N` to change the breakpoint. Resizing across it causes a
-single geometry rebuild; normal samples continue to update only changed rows.
-
-Auto mode first compacts per-user history, then compacts top-level history if
-needed. If every fixed-height user block still cannot fit, the title reports the
-visible range, such as `Users 1-6/12`, and the remaining users are available by
-keyboard or mouse scrolling. A resize never converts users into a two-user grid.
-
-The monitor retains the latest 120 samples. Braille cells encode two adjacent
-time samples horizontally and four sub-levels vertically. The visible graph
-bound is 1.25 times the visible peak, clamped between 64 KiB/s and 128 MiB/s.
-History exists only for the current `netwtop` session.
-
-## Privileges and cross-user visibility
-
-`netwtop` never runs `sudo`, prompts for a password, or changes its privileges.
-
-Without root:
-
-- Interface totals are usually fully available.
-- The invoking user's attributable PIDs and commands are normally visible.
-- Hardened systems may restrict even more process or socket information.
-- Other users' inaccessible process traffic is grouped under
-  `[unattributed]` with `PID -`.
-
-With root on Linux:
-
-- `ss -p` can normally expose process owners for sockets belonging to all users
-  in the current network namespace.
-- The UI can therefore display substantially more complete cross-user PID and
-  command attribution.
-
-Root does not remove fundamental sampling limits: very short-lived connections
-can still start and exit between snapshots, shared sockets cannot always be
-divided exactly among processes, and other network namespaces remain outside
-the current namespace.
-
-Command lines may contain tokens, URLs, or other application arguments. Treat
-terminal captures, CSV files, and JSONL files as potentially sensitive.
-
-## Output formats
-
-### Live table
-
-```sh
-netwtop --format table
-```
-
-With no `--output`, table mode requires a controlling terminal and updates the
-same screen in place. It uses an alternate screen when supported and restores
-the previous screen on exit. If stdout is captured but `/dev/tty` is available,
-the dashboard writes to `/dev/tty`.
-
-To maintain a plain-text file containing only the latest snapshot:
-
-```sh
-netwtop --format table --output current-netwtop.txt
-```
-
-The file is replaced on every report; table mode never appends historical
-frames.
-
-### CSV
+CSV output writes one interface row followed by one row per session user for
+every sample:
 
 ```sh
 netwtop --format csv --output network-usage.csv
 netwtop --format csv --output network-usage.csv --append
 ```
 
-Each sample starts with one `record_type="interface"` row, followed by one
-`record_type="user"` row per session user. The columns are:
+CSV fields are:
 
 ```text
 timestamp
@@ -408,197 +288,308 @@ interface_upload_bytes_per_second
 interface_download_bytes_per_second
 ```
 
-Interface rows leave user-specific values empty. User rows repeat the interface
-rates so a single row remains self-describing.
-
-### JSONL
+JSONL writes one object per sample, including the selected interface, its
+authoritative rates, backend metadata, and a `users` array:
 
 ```sh
 netwtop --format jsonl --output network-usage.jsonl
 netwtop --format jsonl --output network-usage.jsonl --append
 ```
 
-JSONL writes one object per sample. Each object contains timestamp, interval,
-backend, scope, device, authoritative interface rates, active-entry count, and a
-`users` array. Each user object contains username, UID, current rates, cumulative
-session bytes, and active-entry count.
+Cumulative application totals begin at zero when `netwtop` starts. They are
+available in CSV and JSONL but intentionally omitted from the live dashboard.
 
-Cumulative application byte totals start at zero when `netwtop` starts. Traffic
-before the initial snapshot is not counted. Cumulative totals are included in
-CSV and JSONL but intentionally omitted from the live dashboard.
+Table output without `--output` uses a controlling terminal and repaints one
+frame in place. With `--output`, the file is replaced on every sample so that
+it contains only the latest table, never an append-only stream of frames.
+
+------
+
+## Understanding the dashboard
+
+### Interface traffic
+
+The top panel reports:
+
+- Hostname and selected interface, including its position in the detected list.
+- Backend name and current refresh interval.
+- Current interface Upload and Download rates.
+- Independent rate bars with a fixed 128 MiB/s display scale.
+- Rolling directional history and visible maximum rates.
+- Observed user/command counts and PID attribution percentage.
+
+When a rate exceeds 128 MiB/s, the bar remains full and the displayed value is
+`MAX`. Machine-readable output is not capped.
+
+Left/Right changes the selected interface, rebaselines both collectors, and
+clears only interface history. This prevents cross-interface subtraction and a
+false rate spike after switching.
+
+Common Linux interfaces are independent counter domains:
+
+- `eno1np0`, `eno2np1`, and similar names normally represent physical ports.
+- `docker0` is a virtual bridge and does not represent all physical traffic.
+- `lo` contains host-local traffic such as `127.0.0.1` and `::1`.
+
+A packet can cross both a virtual interface and a physical interface, so their
+rates must not be added as though the interfaces were disjoint.
+
+### User and command traffic
+
+The Linux `ss` backend cannot reliably map cumulative socket bytes to the
+selected interface. The lower panel is therefore an explicitly separate,
+all-interface data domain. In this mode the UI displays:
+
+```text
+USER DATA: ALL INTERFACES
+ALL-INTERFACE USER TRAFFIC
+ACCOUNTED (ALL IFACES)
+```
+
+Switching the top interface does not filter these user rows. The explicit scope
+labels prevent global application traffic from being mistaken for traffic on a
+down or idle selected interface.
+
+User presentation is stable:
+
+1. `root` is first when present.
+2. Other users are sorted by username in the C locale.
+3. `[rank/users]` changes with current combined traffic without moving rows.
+
+Each user block contains username, UID, current directional rates, rolling
+history, `ACTIVE`, and a fixed command viewport. `ACTIVE` is the number of
+socket/process entries currently reported for that user; it is not a rate.
+
+Each command row contains PID, command line, Upload/Download rates, and active
+entry count. `PID -` and `[unattributed]` mean the backend observed traffic but
+the operating system did not expose a usable process owner or command.
+
+`ACCOUNTED (ALL IFACES)` is the sum of displayed application-attribution
+traffic. It is not the total of the selected interface and should not be used
+as a replacement for its kernel counters.
+
+### Responsive layout
+
+Width and height are evaluated independently.
+
+At or above the default 100-column breakpoint, users remain a single vertical
+list while each user gets side-by-side Upload and Download panels. Below the
+breakpoint, both directions use separate columns in a compact full-width row.
+Change the threshold with `--two-column-width N`.
+
+Auto mode first reduces per-user graph detail and then top-level graph detail
+when height is limited. If fixed user blocks still do not fit, the title shows
+the visible range (for example, `Users 1-6/12`) and the rest remain reachable
+through scrolling.
+
+The monitor retains 120 samples. Braille cells encode two time samples
+horizontally and four sub-levels vertically. Visible graph bounds follow the
+visible peak and remain between 64 KiB/s and 128 MiB/s. History exists only for
+the current process.
+
+------
+
+## Privileges
+
+`netwtop` never invokes `sudo`, prompts for a password, or changes privileges.
+
+Without root:
+
+- Interface totals are normally fully readable.
+- The invoking user's attributable PIDs and commands are normally visible.
+- Other users may appear as `[unattributed]` with `PID -`.
+- Hardened systems can restrict additional socket or process details.
+
+With root on Linux, `ss -p` can normally expose socket owners for all users in
+the current network namespace. Root does not eliminate sampling gaps, resolve
+shared sockets perfectly, or expose other network namespaces automatically.
+
+Command lines can contain tokens, URLs, or other sensitive arguments. Treat
+terminal recordings and exported CSV/JSONL files accordingly.
+
+------
 
 ## Accounting model
 
-### Interface totals
+### Interface counters
 
-The top panel and top-level CSV/JSONL fields are derived from consecutive byte
-counter snapshots for the selected interface:
+The top panel computes rates from consecutive kernel byte snapshots:
 
 ```text
 rate = (current counter - previous counter) / actual elapsed time
 ```
 
-Counter resets or rollbacks are treated as a zero delta for that sample.
+Counter rollbacks or resets produce a zero delta for that sample.
 
-### Linux application attribution
+### Linux attribution
 
-Linux uses `ss -tinepH` and tracks the cumulative TCP values exposed for visible
-sockets:
+Linux samples `ss -tinepH` cumulative TCP values:
 
 - Upload uses acknowledged application bytes.
 - Download uses received application bytes.
-- Process data comes from `ss -p` and command lines are resolved through `ps`.
-- Attribution covers visible TCP connections across interfaces in the current
-  network namespace; it is therefore labeled `all interfaces` in the UI.
+- `ss -p` supplies process ownership where permitted.
+- `ps` resolves command lines.
+- The scope is visible TCP connections across all interfaces in the current
+  network namespace.
 
-This application view does not include the same byte categories as interface
-RX/TX counters and is not presented as selected-interface coverage.
+This data is not wire-equivalent to interface RX/TX counters.
 
-### macOS application attribution
+### macOS attribution
 
-macOS runs the built-in `nettop` in per-process CSV mode and uses its
-`bytes_in`/`bytes_out` counters for TCP and UDP. PID command lines are resolved
-through `ps` when available. Because this data cannot be reliably restricted to
-the selected interface, it is also labeled as all-interface application detail.
+macOS uses the built-in `nettop` command in per-process CSV mode and samples
+its `bytes_in`/`bytes_out` counters for TCP and UDP. Command lines are resolved
+with `ps`. Because these counters cannot be reliably restricted to the selected
+interface, they are also presented as all-interface application detail.
 
-## Comparison with nload
+### Comparison with nload
 
-Use the same interface, unit, and interval:
+Compare the same interface, units, and interval:
 
 ```sh
 nload -t 1000 -u B eth0
 netwtop --interval 1 --device eth0
 ```
 
-On Linux, both top-level monitors derive rates from kernel interface byte
-counters. Instantaneous values can differ briefly because the two programs do
-not sample at exactly the same time; sustained-transfer rates should converge.
+Both tools derive their top-level Linux rates from kernel interface counters.
+Instantaneous values can differ because sample times are not synchronized;
+sustained-transfer rates should converge. Compare nload with the top interface
+panel or `interface_*_bytes_per_second` fields, not with `ACCOUNTED`.
 
-For automated comparison, use:
+------
 
-- `interface_upload_bytes_per_second`
-- `interface_download_bytes_per_second`
+## Limitations
 
-Do not compare nload with the lower `ACCOUNTED` row, which is only the
-application-attribution subset.
-
-## Known limitations
-
-- Linux application attribution is TCP-focused; authoritative interface totals
-  still include all traffic counted by the interface.
-- Connections or processes that exist entirely between two snapshots may be
-  missed.
+- Linux application attribution is TCP-focused; interface totals include all
+  traffic counted by the interface.
+- Connections that exist entirely between snapshots can be missed.
 - Only the current Linux network namespace is visible.
-- A socket shared by several processes may be assigned to the first owner
-  reported by the operating system.
-- Process attribution and interface totals may cover different interface sets.
-- Root improves access to socket owners but cannot make sampled shell-based
-  accounting equivalent to administrator-configured eBPF, cgroup, or firewall
-  accounting.
-- FreeBSD, OpenBSD, AIX, and other Unix families require new interface and
-  application backends.
+- Shared sockets cannot always be divided exactly among processes.
+- The selected interface and application attribution can have different scopes.
+- Root improves owner visibility but cannot turn sampled shell accounting into
+  complete eBPF, cgroup, or firewall accounting.
+- Other Unix families require dedicated interface and application backends.
 
-Complete wire-level accounting by UID—including packet headers,
-retransmissions, every UDP flow, and very short-lived traffic—cannot be provided
-reliably by an unprivileged cross-platform shell program.
+Complete wire-level accounting by UID—including headers, retransmissions,
+every UDP flow, and every short-lived process—is not reliably available to an
+unprivileged cross-platform shell program.
+
+------
 
 ## Troubleshooting
 
-### `Error: Interval must be at least 0.1 seconds...`
+### Interval validation fails
 
-Use one decimal place and a value of at least `0.1`:
+Intervals use 0.1-second steps and cannot be faster than 10 Hz:
 
 ```sh
 netwtop --interval 0.5
 ```
 
-### `Linux backend requires the ss command from iproute2`
+### `ss` is missing on Linux
 
-Install or expose the operating system's iproute2 `ss` command. `netwtop` does
-not install dependencies itself.
+Expose the iproute2 `ss` command through `PATH`. `netwtop` deliberately does
+not install operating-system dependencies itself.
 
-### Other users show `[unattributed]` or `PID -`
+### Other users are unattributed
 
-This normally means the invoking user cannot inspect those socket owners. Run
-with root only when complete cross-user attribution is required and permitted.
+The current account cannot inspect their socket owners. Run with root only if
+complete cross-user visibility is required and permitted.
 
-### nload shows more traffic than user rows
+### nload reports more traffic than user rows
 
-Compare nload with the top interface panel. The lower user rows and `ACCOUNTED`
-exclude traffic that the process backend cannot observe or attribute.
+Compare nload with the selected-interface panel. User rows and `ACCOUNTED`
+exclude traffic the application backend cannot see or attribute.
 
-### Some users are not visible in a short window
+### A short window hides users
 
-Read the `Users first-last/total` range in the lower title and scroll with
-Up/Down changes the highlighted user and automatically follows it. To scroll
-without changing the highlight, use `j`/`k`, PageUp/PageDown, or the mouse
-wheel. Compact mode can fit more users:
+Read the visible range in the lower title and scroll with `j`/`k`,
+PageUp/PageDown, or the mouse wheel. Up/Down moves the current highlight.
+Compact mode can show more users:
 
 ```sh
 netwtop --mode compact
 ```
 
-### The command is not found after installation
+### The installed command still shows an old UI
 
-Run the installed absolute path or add the prefix's `bin` directory to `PATH`:
+Reinstall the current checkout and clear the shell command cache:
 
 ```sh
-$HOME/.local/bin/netwtop
-export PATH="$HOME/.local/bin:$PATH"
+./install.sh
+hash -r
+netwtop
 ```
 
-## Project structure and development
+------
+
+## Development
+
+The repository keeps installable runtime code separate from documentation and
+test fixtures:
 
 ```text
 .
-├── README.md
-├── bin/netwtop                  Main orchestration entry point
-├── compat/network_monitor.sh    Legacy development launcher
+├── bin/
+│   └── netwtop                    Main executable and sampling loop
+├── compat/
+│   └── network_monitor.sh         Legacy development command
 ├── docs/
-│   ├── ARCHITECTURE.md          Data flow and module boundaries
-│   ├── APT_PACKAGING.md         Debian/APT packaging and publishing process
-│   ├── DEVELOPMENT.md           Contributor workflow and conventions
-│   └── SELF_HOSTED_APT_REPOSITORY.md
-│                                Project-owned APT repository operations
-├── install.sh                   User-prefix installer
-├── lib/netwtop/
-│   ├── accounting.sh            Deltas, cumulative totals, and ordering
-│   ├── backends/                Linux/macOS application collectors
-│   ├── formats.sh               CSV and JSONL output
-│   ├── history.sh               Rolling sample history
-│   ├── interfaces.sh            Interface selection and RX/TX counters
-│   ├── runtime.sh               Options, terminal lifecycle, and input
-│   └── ui/                      Responsive frame renderer
-├── netwtop                      Run-from-checkout launcher
-└── tests/
-    ├── fixtures/                Deterministic renderer fixtures
-    └── smoke.sh                 Offline regression suite
+│   ├── README.md                  Documentation index
+│   ├── ARCHITECTURE.md            Data flow and renderer invariants
+│   ├── DEVELOPMENT.md             Contributor workflow
+│   └── packaging/                 Debian and APT publication guides
+├── src/
+│   ├── backends/                  Linux and macOS attribution collectors
+│   ├── core/                      Counters, aggregation, and history
+│   ├── output/                    CSV and JSONL serialization
+│   ├── runtime/                   CLI, terminal, and input handling
+│   ├── ui/                        Terminal renderer and frame commit logic
+│   └── manifest.sh                Ordered install and module-load manifest
+├── tests/
+│   ├── fixtures/                  Deterministic renderer data
+│   └── smoke.sh                   Offline regression suite
+├── CHANGELOG.md
+├── COPYING                        GNU GPL version 3
+├── LICENSE                        Apache License version 2.0
+├── install.sh                     Prefix installer
+└── netwtop                        Run-from-checkout launcher
 ```
 
-See [Architecture](docs/ARCHITECTURE.md) for the data pipeline and renderer
-invariants. See [Development guide](docs/DEVELOPMENT.md) for testing, coding
-conventions, staging installation, and backend extension instructions. See
-[APT packaging guide](docs/APT_PACKAGING.md) for building a `.deb`, publishing
-an APT repository, and submitting the package to Debian. The detailed
-[self-hosted APT repository guide](docs/SELF_HOSTED_APT_REPOSITORY.md) covers
-the recommended `reprepro` setup, signing, HTTPS publication, CI/CD, client
-configuration, and key rotation.
+The repository uses `src/` for responsibility-based source organization. The
+installer maps this tree to `$PREFIX/lib/netwtop/`, preserving normal Unix
+installation conventions without forcing the source checkout to imitate an
+installed filesystem. The root launcher only connects a development checkout
+to `bin/netwtop`.
 
-Run all offline checks with:
+Run all offline checks without root or network access:
 
 ```sh
 ./tests/smoke.sh
 ```
 
-The interface is independently implemented and visually inspired by nvitop's
-responsive terminal design. Traffic-counter behavior was validated against the
-interface-accounting model used by nload. This project does not import or copy
-either project's UI implementation and does not invoke them at runtime.
+See the [documentation index](docs/README.md),
+[architecture](docs/ARCHITECTURE.md), and
+[development guide](docs/DEVELOPMENT.md) for module boundaries, test coverage,
+staged installation, coding conventions, and backend extension instructions.
+
+The terminal design is inspired by nvitop, while the implementation is
+independent and does not import or invoke nvitop. Interface-counter behavior is
+validated against the accounting model used by nload; netwtop does not invoke
+nload at runtime.
+
+------
 
 ## Changelog
-See [CHANGELOG.md](CHANGELOG.md).
+
+See [CHANGELOG.md](CHANGELOG.md) for release notes. The project follows
+[Semantic Versioning](https://semver.org/) and maintains entries in the
+[Keep a Changelog](https://keepachangelog.com/) format.
+
+------
 
 ## License
-The source code of `netwtop` is dual-licensed by the **Apache License, Version 2.0 (Apache-2.0)** and **GNU General Public License, Version 3 (GPL-3.0)**.
 
+`netwtop` is dual-licensed under your choice of:
 
+- [Apache License 2.0](LICENSE)
+- [GNU General Public License version 3](COPYING)

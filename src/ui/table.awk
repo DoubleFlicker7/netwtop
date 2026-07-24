@@ -264,7 +264,8 @@ function pair_box(left, right, left_color, right_color, left_visual,
     }
     left = left repeat_text(" ", left_width - left_visual)
     right = right repeat_text(" ", right_width - right_visual)
-    text = left_color left color_reset " │ " right_color right color_reset
+    text = left_color left color_reset color_border " │ " color_reset \
+        right_color right color_reset
     box_line(text, "", content_width)
 }
 
@@ -638,6 +639,15 @@ END {
     display_time = terminal_safe_text(display_time)
     host_name = terminal_safe_text(host_name)
     interface_name = terminal_safe_text(interface_name)
+    interface_index = int(interface_index + 0)
+    interface_count = int(interface_count + 0)
+    if (interface_count > 0) {
+        if (interface_index < 1) interface_index = 1
+        if (interface_index > interface_count) interface_index = interface_count
+        interface_position = sprintf(" [%d/%d]", interface_index, interface_count)
+    } else {
+        interface_position = ""
+    }
     backend = terminal_safe_text(backend)
     scope = terminal_safe_text(scope)
     session_label = terminal_safe_text(session_label)
@@ -720,14 +730,25 @@ END {
     if (attribution_device_scoped) {
         status_right = "Accounted: UP " upload_coverage_text \
             "  DN " download_coverage_text
+        status_color = ""
+        user_panel_title = "NETWORK USAGE BY USER"
+        checked_panel_title = "CHECKED"
+        accounted_label = "ACCOUNTED"
+        user_scope_color = color_title
     } else {
-        status_right = "App detail: all interfaces"
+        status_right = "USER DATA: ALL INTERFACES"
+        status_color = color_warning
+        user_panel_title = "ALL-INTERFACE USER TRAFFIC"
+        checked_panel_title = "ALL-INTERFACE CHECKED"
+        accounted_label = "ACCOUNTED (ALL IFACES)"
+        user_scope_color = color_warning
     }
 
     border("top")
     box_line(left_right("NETWTOP  NETWORK TRAFFIC MONITOR", display_time,
         content_width), color_title)
-    box_line(left_right("Host: " host_name "  Device: " interface_name,
+    box_line(left_right("Host: " host_name "  Device: " interface_name \
+        interface_position,
         backend "  Refresh: " refresh_interval "s", content_width), color_dim)
     if (history_detail) box_line("Scope: " scope, "")
     border("heavy")
@@ -744,7 +765,7 @@ END {
         history_line("UP HISTORY", "I", 1, color_upload)
         history_line("DN HISTORY", "I", 2, color_download)
     }
-    box_line(left_right(status_left, status_right, content_width), "")
+    box_line(left_right(status_left, status_right, content_width), status_color)
     border("bottom")
     blank_line()
 
@@ -802,11 +823,12 @@ END {
             }
 
             username = user_name[expanded_user_index]
-            focus_label = sprintf("CHECKED  Commands %d-%d/%d  %s",
+            focus_label = sprintf("%s  Commands %d-%d/%d  %s", checked_panel_title,
                 expanded_command_start, expanded_command_end,
                 all_command_count[uid] + 0, username)
             border("top")
-            box_line(left_right(focus_label, session_label, content_width), color_title)
+            box_line(left_right(focus_label, session_label, content_width),
+                user_scope_color)
             if (two_column_layout) {
                 box_line(left_right("RANK USER", "UID / ACTIVE", content_width),
                     color_header, content_width)
@@ -853,9 +875,9 @@ END {
             }
             border("heavy")
             if (two_column_layout) {
-                total_line = split_identity_row("ACCOUNTED", "-", active_total + 0)
+                total_line = split_identity_row(accounted_label, "-", active_total + 0)
             } else {
-                total_line = table_row("ACCOUNTED", "-",
+                total_line = table_row(accounted_label, "-",
                     human_bytes(upload_delta_total / elapsed) "/s",
                     human_bytes(download_delta_total / elapsed) "/s",
                     dual_history("A", history_width), active_total + 0)
@@ -922,8 +944,8 @@ END {
         }
 
         border("top")
-        box_line(left_right("NETWORK USAGE BY USER  " viewport_label,
-            session_label, content_width), color_title)
+        box_line(left_right(user_panel_title "  " viewport_label,
+            session_label, content_width), user_scope_color)
         if (two_column_layout) {
             box_line(left_right("RANK USER", "UID / ACTIVE", content_width),
                 color_header, content_width)
@@ -1001,9 +1023,9 @@ END {
         if (!user_count) box_line("No attributable application traffic.", color_dim)
         border("heavy")
         if (two_column_layout) {
-            total_line = split_identity_row("ACCOUNTED", "-", active_total + 0)
+            total_line = split_identity_row(accounted_label, "-", active_total + 0)
         } else {
-            total_line = table_row("ACCOUNTED", "-",
+            total_line = table_row(accounted_label, "-",
                 human_bytes(upload_delta_total / elapsed) "/s",
                 human_bytes(download_delta_total / elapsed) "/s",
                 dual_history("A", history_width), active_total + 0)
@@ -1020,7 +1042,8 @@ END {
         }
     } else {
         border("top")
-        box_line(left_right("NETWORK USAGE BY USER", session_label, content_width), color_title)
+        box_line(left_right(user_panel_title, session_label, content_width),
+            user_scope_color)
         if (two_column_layout) {
             box_line(left_right("RANK USER", "UID / ACTIVE", content_width),
                 color_header, content_width)
@@ -1089,9 +1112,9 @@ END {
         }
         border("heavy")
         if (two_column_layout) {
-            total_line = split_identity_row("ACCOUNTED", "-", active_total + 0)
+            total_line = split_identity_row(accounted_label, "-", active_total + 0)
         } else {
-            total_line = table_row("ACCOUNTED", "-",
+            total_line = table_row(accounted_label, "-",
                 human_bytes(upload_delta_total / elapsed) "/s",
                 human_bytes(download_delta_total / elapsed) "/s",
                 dual_history("A", history_width), active_total + 0)

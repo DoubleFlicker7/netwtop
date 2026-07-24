@@ -1,5 +1,13 @@
 # Rolling in-memory history for interface, accounted, and per-user rates.
 
+reset_interface_history() {
+    [ -s "$HISTORY" ] || return 0
+    LC_ALL=C awk -F '\t' '$2 != "I"' "$HISTORY" >"$NEXT_HISTORY" \
+        || fail "Unable to reset interface traffic history"
+    mv "$NEXT_HISTORY" "$HISTORY" \
+        || fail "Unable to replace interface traffic history"
+}
+
 record_history() {
     elapsed=$1
     HISTORY_SAMPLE=$((HISTORY_SAMPLE + 1))

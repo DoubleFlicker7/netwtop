@@ -8,7 +8,7 @@ Monitor network upload and download usage grouped by local user.
 
 Options:
   -i, --interval SECONDS  Sampling interval in 0.1-second steps (default: 0.5)
-  -d, --device INTERFACE  Monitor this interface (default: default route)
+  -d, --device INTERFACE  Start with this interface (default: default route)
   -n, --count NUMBER      Stop after NUMBER reports (default: run continuously)
   -m, --mode MODE         Display mode: auto, compact, or full (default: auto)
       --two-column-width N Split upload/download at N columns (default: 100)
@@ -22,6 +22,7 @@ Interactive keys:
   r / R                   Refresh immediately
   + / -                   Decrease / increase the refresh interval
   a / c / f               Auto / compact / full display mode
+  Left / Right            Switch the monitored network interface
   Up / Down               Move the highlighted user or command
   j / k                   Scroll users, or commands for a checked user
   PageUp / PageDown       Scroll users, or commands for a checked user
@@ -277,6 +278,11 @@ request_stop() {
 
 request_resize() {
     RESIZE_PENDING=1
+}
+
+request_interface_switch() {
+    INTERFACE_SWITCH_DIRECTION=$1
+    INTERFACE_SWITCH_PENDING=1
 }
 
 enable_interactive_terminal() {
@@ -629,6 +635,10 @@ wait_interval_or_key() {
             a|A) DISPLAY_MODE=auto; return ;;
             c|C) DISPLAY_MODE=compact; return ;;
             f|F) DISPLAY_MODE=full; return ;;
+            "${ESCAPE_SEQUENCE}[D"|"${ESCAPE_SEQUENCE}OD")
+                request_interface_switch -1; return ;;
+            "${ESCAPE_SEQUENCE}[C"|"${ESCAPE_SEQUENCE}OC")
+                request_interface_switch 1; return ;;
             j|J)
                 scroll_user_table 1; return ;;
             k|K)

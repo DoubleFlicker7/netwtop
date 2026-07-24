@@ -7,24 +7,30 @@
 ├── README.md
 ├── bin/                       Executable entry point
 ├── compat/                    Legacy development launchers
-├── docs/                      Architecture and contributor documentation
+├── docs/                      User, architecture, and contributor documentation
+│   └── packaging/            Debian and APT publication guides
 ├── install.sh                 User-prefix installer
-├── lib/netwtop/               Shell and awk implementation modules
+├── src/                       Shell and awk implementation modules
 │   ├── backends/              OS-specific process attribution
-│   └── ui/                    Interactive table renderer
+│   ├── core/                  Counters, aggregation, and history
+│   ├── output/                Machine-readable serializers
+│   ├── runtime/               CLI, terminal lifecycle, and input
+│   ├── ui/                    Interactive table renderer
+│   └── manifest.sh            Ordered module and resource manifest
 ├── netwtop                    Run-from-checkout launcher
 └── tests/
     ├── fixtures/              Deterministic TSV renderer inputs
     └── smoke.sh               Offline regression suite
 ```
 
-The layout mirrors the installed prefix: `bin/netwtop` loads modules from
-`lib/netwtop`. The root `netwtop` file only points a development checkout at
-that install-style tree.
+The source tree is grouped by responsibility rather than by its eventual FHS
+destination. In a checkout, `bin/netwtop` discovers `src/manifest.sh`. After
+installation it discovers the same manifest below `../lib/netwtop`. The root
+`netwtop` file is only a development launcher.
 
-Packaging is documented in [`APT_PACKAGING.md`](APT_PACKAGING.md). The
+Packaging is documented in [`packaging/APT_PACKAGING.md`](packaging/APT_PACKAGING.md). The
 production procedure for publishing from the project's own repository is in
-[`SELF_HOSTED_APT_REPOSITORY.md`](SELF_HOSTED_APT_REPOSITORY.md).
+[`packaging/SELF_HOSTED_APT_REPOSITORY.md`](packaging/SELF_HOSTED_APT_REPOSITORY.md).
 
 ## Running from a checkout
 
@@ -58,6 +64,7 @@ The suite checks:
 - Exact frame width across terminal sizes from 78 to 240 columns.
 - User pagination, command scrolling, mouse hit maps, and checked-user mode.
 - Context-aware Up/Down highlight navigation for users and commands.
+- Left/Right interface switching and safe counter rebaselining.
 - Terminal-safe command text and UTF-8 graph alignment.
 - Rolling-history retention and CSV/JSONL behavior.
 
@@ -79,7 +86,9 @@ also verify these cases in a real terminal:
 
 Resize across the breakpoint, shrink below the available user height, scroll
 both the table and command viewports, check and uncheck a user, and quit with
-`q`. Verify that the previous terminal screen, cursor, mouse mode, and line
+`q`. Use Left/Right to cycle physical, virtual, and loopback interfaces and
+verify that the device index and interface history reset without a rate spike.
+Verify that the previous terminal screen, cursor, mouse mode, and line
 wrapping are restored.
 
 Root is optional for UI development. Use it only for a final Linux attribution
@@ -100,12 +109,11 @@ NETWTOP_PREFIX=$staging_dir ./install.sh
 $staging_dir/bin/netwtop --help
 ```
 
-The installed `bin/netwtop` expects its modules in
-`../lib/netwtop`. If a new runtime module is added, update all three places:
-
-1. The module list in `bin/netwtop`.
-2. The copy and permission lists in `install.sh`.
-3. The shell-file list in `tests/smoke.sh`.
+The installed `bin/netwtop` expects its module tree in `../lib/netwtop`.
+`src/manifest.sh` is the single ordered inventory used by the loader, installer,
+and syntax tests. When adding a module, add its relative path to
+`NETWTOP_RUNTIME_MODULES`; non-shell renderer resources belong in
+`NETWTOP_RESOURCE_FILES`.
 
 ## Coding conventions
 
@@ -118,7 +126,8 @@ The installed `bin/netwtop` expects its modules in
 - Preserve the distinction between authoritative interface traffic and the
   lower application-attribution subset.
 - Never invoke `sudo` or silently elevate privileges.
-- Keep OS-specific parsing inside `backends/` or `interfaces.sh`.
+- Keep OS-specific process parsing inside `src/backends/` and interface-counter
+  logic inside `src/core/interfaces.sh`.
 - Avoid adding third-party runtime dependencies.
 
 ## Adding a backend
@@ -129,10 +138,11 @@ UID, PID, command, cumulative upload bytes, and cumulative download bytes.
 
 When adding support for another OS:
 
-1. Add platform detection and dependency validation in `runtime.sh`.
+1. Add platform detection and dependency validation in
+   `src/runtime/runtime.sh`.
 2. Implement default-interface selection and counter snapshots in
-   `interfaces.sh`.
-3. Add the application collector below `lib/netwtop/backends/`.
-4. Load and install the module through `bin/netwtop` and `install.sh`.
+   `src/core/interfaces.sh`.
+3. Add the application collector below `src/backends/`.
+4. Add the module to `src/manifest.sh` in dependency order.
 5. Add fixture-driven parser and renderer tests.
 6. Document the accounting semantics and known gaps in `README.md`.

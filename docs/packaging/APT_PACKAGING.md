@@ -20,7 +20,7 @@ sudo apt install netwtop
 如果希望用户在一台标准 Debian 或 Ubuntu 机器上不添加任何第三方源就能
 安装，必须完成 Debian/Ubuntu 官方收录流程。
 
-## 2. 当前项目需要补齐的上游信息
+## 2. 发布前需要补齐的上游信息
 
 ### 2.1 开源许可证
 
@@ -31,7 +31,7 @@ sudo apt install netwtop
 - 许可证，例如 MIT、Apache-2.0 或 GPL-3.0。
 - 引用或修改的第三方代码及其许可证。
 
-需要在项目根目录增加：
+项目根目录已经提供：
 
 ```text
 LICENSE
@@ -48,11 +48,11 @@ debian/copyright
 
 ### 2.2 版本与正式发布
 
-建议建立以下版本发布规则：
+项目已经提供 `CHANGELOG.md`，发布前还应补齐以下版本机制：
 
 - 增加 `VERSION` 文件，例如 `0.1.0`。
 - 增加 `netwtop --version`。
-- 增加 `CHANGELOG.md`。
+- 在每次发布前把 `CHANGELOG.md` 的 Unreleased 内容归档到对应版本。
 - 使用 Git 管理项目。
 - 创建版本标签，例如 `v0.1.0`。
 - 发布对应的源码归档，例如 `netwtop_0.1.0.orig.tar.gz`。
@@ -134,13 +134,13 @@ debian/
 
 ## 4. 定义软件包安装路径
 
-当前项目已经接近标准的安装式目录结构，可以使用以下映射：
+源码按职责保存在 `src/`，打包时映射到标准安装目录：
 
 ```text
 bin/netwtop
     → /usr/bin/netwtop
 
-lib/netwtop/*
+src/*
     → /usr/lib/netwtop/*
 
 man/netwtop.1
@@ -157,8 +157,8 @@ README.md
 - `tests/` 和测试 fixture。
 - `docs/DEVELOPMENT.md`，除非希望把开发文档也放入二进制包。
 
-安装后的 `/usr/bin/netwtop` 会从 `/usr/lib/netwtop` 加载模块，与当前
-`bin/netwtop` 的路径解析方式一致。
+安装后的 `/usr/bin/netwtop` 会从 `/usr/lib/netwtop/manifest.sh` 读取模块
+清单，并按清单顺序从 `/usr/lib/netwtop` 加载模块。
 
 ## 5. 编写 debian/control
 
@@ -227,9 +227,12 @@ chmod 755 debian/rules
 
 ```text
 bin/netwtop usr/bin
-lib/netwtop/*.sh usr/lib/netwtop
-lib/netwtop/backends/*.sh usr/lib/netwtop/backends
-lib/netwtop/ui/* usr/lib/netwtop/ui
+src/manifest.sh usr/lib/netwtop
+src/runtime/*.sh usr/lib/netwtop/runtime
+src/core/*.sh usr/lib/netwtop/core
+src/backends/*.sh usr/lib/netwtop/backends
+src/output/*.sh usr/lib/netwtop/output
+src/ui/* usr/lib/netwtop/ui
 man/netwtop.1 usr/share/man/man1
 ```
 
@@ -479,7 +482,7 @@ Ubuntu 稳定版更快。
 
 1. 确定许可证、版权持有人和维护者邮箱。
 2. 确定首个版本号。
-3. 增加 `--version`、`VERSION` 和 `CHANGELOG.md`。
+3. 增加 `--version` 和 `VERSION`，并从 `CHANGELOG.md` 确认发布内容。
 4. 增加 `man/netwtop.1`。
 5. 创建 `debian/` 目录。
 6. 构建 `.deb` 和源码包。

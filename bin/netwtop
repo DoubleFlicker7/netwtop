@@ -1,45 +1,41 @@
 #!/bin/sh
-# Main netwtop entry point. Functional code lives in lib/netwtop.
+# Main netwtop entry point. Functional code lives in the module tree.
 
 set -u
 umask 077
 
 BIN_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
 PREFIX_DIR=$(CDPATH= cd -- "$BIN_DIR/.." && pwd) || exit 1
-NETWTOP_LIB_DIR=${NETWTOP_LIB_DIR:-$PREFIX_DIR/lib/netwtop}
 
-for module in \
-    runtime.sh \
-    backends/common.sh \
-    backends/linux.sh \
-    backends/macos.sh \
-    interfaces.sh \
-    accounting.sh \
-    history.sh \
-    formats.sh \
-    ui/table.sh
-do
-    if [ ! -r "$NETWTOP_LIB_DIR/$module" ]; then
+if [ -n "${NETWTOP_MODULE_ROOT:-}" ]; then
+    :
+elif [ -n "${NETWTOP_LIB_DIR:-}" ]; then
+    # Backward-compatible override used by earlier development integrations.
+    NETWTOP_MODULE_ROOT=$NETWTOP_LIB_DIR
+elif [ -r "$PREFIX_DIR/src/manifest.sh" ]; then
+    NETWTOP_MODULE_ROOT=$PREFIX_DIR/src
+else
+    NETWTOP_MODULE_ROOT=$PREFIX_DIR/lib/netwtop
+fi
+
+if [ ! -r "$NETWTOP_MODULE_ROOT/manifest.sh" ]; then
+    printf 'Error: Required netwtop module manifest not found: %s\n' \
+        "$NETWTOP_MODULE_ROOT/manifest.sh" >&2
+    exit 1
+fi
+. "$NETWTOP_MODULE_ROOT/manifest.sh"
+
+for module in $NETWTOP_RUNTIME_MODULES $NETWTOP_RESOURCE_FILES; do
+    if [ ! -r "$NETWTOP_MODULE_ROOT/$module" ]; then
         printf 'Error: Required netwtop module not found: %s\n' \
-            "$NETWTOP_LIB_DIR/$module" >&2
+            "$NETWTOP_MODULE_ROOT/$module" >&2
         exit 1
     fi
 done
-if [ ! -r "$NETWTOP_LIB_DIR/ui/table.awk" ]; then
-    printf 'Error: Required netwtop module not found: %s\n' \
-        "$NETWTOP_LIB_DIR/ui/table.awk" >&2
-    exit 1
-fi
 
-. "$NETWTOP_LIB_DIR/runtime.sh"
-. "$NETWTOP_LIB_DIR/backends/common.sh"
-. "$NETWTOP_LIB_DIR/backends/linux.sh"
-. "$NETWTOP_LIB_DIR/backends/macos.sh"
-. "$NETWTOP_LIB_DIR/interfaces.sh"
-. "$NETWTOP_LIB_DIR/accounting.sh"
-. "$NETWTOP_LIB_DIR/history.sh"
-. "$NETWTOP_LIB_DIR/formats.sh"
-. "$NETWTOP_LIB_DIR/ui/table.sh"
+for module in $NETWTOP_RUNTIME_MODULES; do
+    . "$NETWTOP_MODULE_ROOT/$module"
+done
 
 PROGRAM=${NETWTOP_PROGRAM_NAME:-${0##*/}}
 INTERVAL=0.5
@@ -51,6 +47,11 @@ FORMAT=table
 OUTPUT=
 APPEND=0
 DEVICE=
+INTERFACE_NAMES=
+INTERFACE_COUNT=0
+INTERFACE_INDEX=0
+INTERFACE_SWITCH_PENDING=0
+INTERFACE_SWITCH_DIRECTION=0
 STOPPING=0
 WORK_DIR=
 TABLE_TARGET=
@@ -107,6 +108,24 @@ REPORTS=0
 while [ "$STOPPING" -eq 0 ]; do
     wait_interval_or_key
     [ "$STOPPING" -eq 0 ] || break
+
+    if [ "$INTERFACE_SWITCH_PENDING" -eq 1 ]; then
+        switch_direction=$INTERFACE_SWITCH_DIRECTION
+        INTERFACE_SWITCH_PENDING=0
+        INTERFACE_SWITCH_DIRECTION=0
+        if switch_interface "$switch_direction"; then
+            # Both collectors need a fresh baseline. Reusing the previous
+            # interface counters would create a false spike; reusing the
+            # previous process snapshot would inflate all-interface user rates
+            # across the extra wait interval.
+            snapshot_interface "$INTERFACE_PREVIOUS"
+            take_snapshot "$PREVIOUS"
+            reset_interface_history
+            INTERFACE_RX_DELTA=0
+            INTERFACE_TX_DELTA=0
+            continue
+        fi
+    fi
 
     snapshot_interface "$INTERFACE_CURRENT"
     take_snapshot "$CURRENT"

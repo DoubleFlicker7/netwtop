@@ -34,16 +34,22 @@ per-process counters cannot account for every interface byte.
 | Path | Responsibility |
 | --- | --- |
 | `bin/netwtop` | Main loop and module loading. |
-| `lib/netwtop/runtime.sh` | CLI parsing, validation, temporary workspace, terminal lifecycle, keyboard and mouse input. |
-| `lib/netwtop/interfaces.sh` | Default-interface selection and authoritative RX/TX snapshots. |
-| `lib/netwtop/backends/common.sh` | Process command lines and UID-to-name discovery. |
-| `lib/netwtop/backends/linux.sh` | Linux socket collection through `ss`. |
-| `lib/netwtop/backends/macos.sh` | macOS process traffic collection through `/usr/bin/nettop`. |
-| `lib/netwtop/accounting.sh` | Counter deltas, cumulative values, user ordering, and command ordering. |
-| `lib/netwtop/history.sh` | Bounded rolling history for the interface, users, and accounted traffic. |
-| `lib/netwtop/formats.sh` | CSV and JSONL serialization. |
-| `lib/netwtop/ui/table.sh` | Responsive frame preparation and differential terminal commits. |
-| `lib/netwtop/ui/table.awk` | Table sizing, graph rendering, pagination, highlighting, and hit maps. |
+| `src/manifest.sh` | Ordered runtime-module and resource inventory shared by loading, installation, and tests. |
+| `src/runtime/runtime.sh` | CLI parsing, validation, temporary workspace, terminal lifecycle, keyboard and mouse input. |
+| `src/core/interfaces.sh` | Interface enumeration, live selection, and authoritative RX/TX snapshots. |
+| `src/core/accounting.sh` | Counter deltas, cumulative values, user ordering, and command ordering. |
+| `src/core/history.sh` | Bounded rolling history for the interface, users, and accounted traffic. |
+| `src/backends/common.sh` | Process command lines and UID-to-name discovery. |
+| `src/backends/linux.sh` | Linux socket collection through `ss`. |
+| `src/backends/macos.sh` | macOS process traffic collection through `/usr/bin/nettop`. |
+| `src/output/formats.sh` | CSV and JSONL serialization. |
+| `src/ui/table.sh` | Responsive frame preparation and differential terminal commits. |
+| `src/ui/table.awk` | Table sizing, graph rendering, pagination, highlighting, and hit maps. |
+
+In a source checkout, the executable loads the module root from `src/`. The
+installer preserves these responsibility subdirectories below
+`$PREFIX/lib/netwtop/`; the installed executable discovers that module root
+without a source-only wrapper.
 
 ## Runtime workspace
 
@@ -90,12 +96,22 @@ then paginates users only when complete fixed-height user blocks cannot fit.
 Interface collection is selected by `interfaces.sh`; application collection is
 selected by the backend module:
 
+- Interactive Left/Right selection enumerates the interfaces currently exposed
+  by the operating system. A switch refreshes both collector baselines and
+  clears only the selected-interface history, preventing cross-device counter
+  subtraction and rate inflation.
+
 - Linux interface totals use sysfs, with `/proc/net/dev` as fallback. Linux
   application detail uses `ss` TCP counters in the current network namespace.
 - macOS interface totals use `netstat`. Application detail uses the built-in
   `nettop` process counters for TCP and UDP.
 
+When an application backend is not device-scoped, the renderer treats it as a
+separate global data domain: the top status and lower title explicitly say
+`ALL INTERFACES`, and the selected device affects only the authoritative top
+panel. The UI must not imply that global socket deltas belong to the selected
+interface.
+
 A new Unix platform needs both interface selection/snapshot functions and an
 application backend that emits the common snapshot schema expected by
 `accounting.sh`.
-

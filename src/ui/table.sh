@@ -60,7 +60,7 @@ report_table() {
 
     if [ -z "$OUTPUT" ]; then
         render_target=$FRAME
-        color_border=$(printf '\033[36m')
+        color_border=$(printf '\033[37m')
         color_title=$(printf '\033[1;36m')
         color_header=$(printf '\033[1m')
         color_user=$(printf '\033[1;32m')
@@ -78,7 +78,7 @@ report_table() {
     display_time=$(LC_ALL=C date '+%a %b %d %T %Y')
     session_label="${USER:-user}@$HOST_NAME"
     if [ "$INTERACTIVE_TABLE" -eq 1 ]; then
-        session_label="[q] [Up/Dn] [j/k/Pg] [x] [mouse]"
+        session_label="[q] [L/R:IF] [Up/Dn] [j/k/Pg] [x] [mouse]"
     fi
 
     # A resize can arrive while a frame is being built. Render again with the
@@ -100,6 +100,8 @@ report_table() {
             -v two_column_width="$TWO_COLUMN_WIDTH" \
             -v scope="$SCOPE" -v active_entries="$active_entries" \
             -v interface_name="$DEVICE" \
+            -v interface_index="$INTERFACE_INDEX" \
+            -v interface_count="$INTERFACE_COUNT" \
             -v interface_rx_delta="$INTERFACE_RX_DELTA" \
             -v interface_tx_delta="$INTERFACE_TX_DELTA" \
             -v attribution_device_scoped="$ATTRIBUTION_DEVICE_SCOPED" \
@@ -120,7 +122,7 @@ report_table() {
             -v color_warning="$color_warning" -v color_dim="$color_dim" \
             -v color_total="$color_total" -v color_selected="$color_selected" \
             -v color_reset="$color_reset" \
-            -f "$NETWTOP_LIB_DIR/ui/table.awk" \
+            -f "$NETWTOP_MODULE_ROOT/ui/table.awk" \
             "$UID_NAMES" "$SORTED_COMMAND_ROWS" "$TABLE_ROWS" "$HISTORY" \
             >>"$render_target" \
             || fail "Unable to render the live table"

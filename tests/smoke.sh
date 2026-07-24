@@ -10,17 +10,13 @@ for shell_file in \
     install.sh \
     bin/netwtop \
     compat/network_monitor.sh \
-    lib/netwtop/runtime.sh \
-    lib/netwtop/accounting.sh \
-    lib/netwtop/formats.sh \
-    lib/netwtop/interfaces.sh \
-    lib/netwtop/history.sh \
-    lib/netwtop/backends/common.sh \
-    lib/netwtop/backends/linux.sh \
-    lib/netwtop/backends/macos.sh \
-    lib/netwtop/ui/table.sh
+    src/manifest.sh
 do
     sh -n "$PROJECT_ROOT/$shell_file" || exit 1
+done
+. "$PROJECT_ROOT/src/manifest.sh"
+for module in $NETWTOP_RUNTIME_MODULES; do
+    sh -n "$PROJECT_ROOT/src/$module" || exit 1
 done
 
 "$PROJECT_ROOT/netwtop" --help >/dev/null || exit 1
@@ -36,16 +32,22 @@ do
         exit 1
     }
 done
+[ -s "$PROJECT_ROOT/docs/README.md" ] || exit 1
 [ -s "$PROJECT_ROOT/docs/ARCHITECTURE.md" ] || exit 1
-[ -s "$PROJECT_ROOT/docs/APT_PACKAGING.md" ] || exit 1
 [ -s "$PROJECT_ROOT/docs/DEVELOPMENT.md" ] || exit 1
-[ -s "$PROJECT_ROOT/docs/SELF_HOSTED_APT_REPOSITORY.md" ] || exit 1
+[ -s "$PROJECT_ROOT/docs/packaging/README.md" ] || exit 1
+[ -s "$PROJECT_ROOT/docs/packaging/APT_PACKAGING.md" ] || exit 1
+[ -s "$PROJECT_ROOT/docs/packaging/SELF_HOSTED_APT_REPOSITORY.md" ] || exit 1
+[ -s "$PROJECT_ROOT/CHANGELOG.md" ] || exit 1
+[ -s "$PROJECT_ROOT/LICENSE" ] || exit 1
 if "$PROJECT_ROOT/netwtop" --interval 0.09 --format jsonl --count 1 \
         >/dev/null 2>&1; then
     printf 'Error: An interval faster than 10 Hz was accepted.\n' >&2
     exit 1
 fi
-. "$PROJECT_ROOT/lib/netwtop/runtime.sh"
+NETWTOP_MODULE_ROOT=$PROJECT_ROOT/src
+. "$PROJECT_ROOT/src/runtime/runtime.sh"
+. "$PROJECT_ROOT/src/core/interfaces.sh"
 is_valid_interval 0.1 || exit 1
 is_valid_interval 0.5 || exit 1
 is_valid_interval 1.5 || exit 1
@@ -53,6 +55,30 @@ is_valid_interval 0.09 && exit 1
 INTERVAL=0.5
 normalize_interval
 [ "$INTERVAL" = 0.5 ] && [ "$INTERVAL_TENTHS" -eq 5 ] || exit 1
+list_available_interfaces() {
+    printf '%s\n' docker0 eno1np0 eno2np1 lo
+}
+configure_interface() {
+    refresh_interface_list
+}
+DEVICE=eno1np0
+refresh_interface_list
+[ "$INTERFACE_COUNT" -eq 4 ] && [ "$INTERFACE_INDEX" -eq 2 ] || exit 1
+[ "$(adjacent_interface_name -1)" = docker0 ] || exit 1
+[ "$(adjacent_interface_name 1)" = eno2np1 ] || exit 1
+switch_interface 1 || exit 1
+[ "$DEVICE" = eno2np1 ] && [ "$INTERFACE_INDEX" -eq 3 ] || exit 1
+switch_interface 1 || exit 1
+[ "$DEVICE" = lo ] && [ "$INTERFACE_INDEX" -eq 4 ] || exit 1
+switch_interface 1 || exit 1
+[ "$DEVICE" = docker0 ] && [ "$INTERFACE_INDEX" -eq 1 ] || exit 1
+switch_interface -1 || exit 1
+[ "$DEVICE" = lo ] && [ "$INTERFACE_INDEX" -eq 4 ] || exit 1
+INTERFACE_SWITCH_PENDING=0
+INTERFACE_SWITCH_DIRECTION=0
+request_interface_switch -1
+[ "$INTERFACE_SWITCH_PENDING" -eq 1 ] \
+    && [ "$INTERFACE_SWITCH_DIRECTION" -eq -1 ] || exit 1
 if "$PROJECT_ROOT/netwtop" --mode invalid >/dev/null 2>&1; then
     printf 'Error: Invalid display mode was accepted.\n' >&2
     exit 1
@@ -75,7 +101,7 @@ LC_ALL=C awk -F '\t' \
     -v interface_tx_delta=0 -v attribution_device_scoped=1 \
     -v history_limit=120 \
     -v host_name=test -v session_label=test -v display_time=test \
-    -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+    -f "$PROJECT_ROOT/src/ui/table.awk" \
     /dev/null /dev/null /dev/null /dev/null >/dev/null || exit 1
 
 SMOKE_OUTPUT=$(mktemp "${TMPDIR:-/tmp}/netwtop-smoke.XXXXXX") || exit 1
@@ -83,14 +109,50 @@ HISTORY_TEST=$(mktemp "${TMPDIR:-/tmp}/netwtop-history.XXXXXX") || exit 1
 NEXT_HISTORY=${HISTORY_TEST}.next
 HITMAP_TEST=$(mktemp "${TMPDIR:-/tmp}/netwtop-hitmap.XXXXXX") || exit 1
 LAYOUT_TEST=$(mktemp "${TMPDIR:-/tmp}/netwtop-layout.XXXXXX") || exit 1
-trap 'rm -f "$SMOKE_OUTPUT" "$HISTORY_TEST" "$NEXT_HISTORY" "$HITMAP_TEST" "$LAYOUT_TEST"' 0 HUP INT TERM
+INSTALL_TEST=$(mktemp -d "${TMPDIR:-/tmp}/netwtop-install.XXXXXX") || exit 1
+trap 'rm -f "$SMOKE_OUTPUT" "$HISTORY_TEST" "$NEXT_HISTORY" "$HITMAP_TEST" "$LAYOUT_TEST"; rm -rf "$INSTALL_TEST"' 0 HUP INT TERM
+mkdir -p "$INSTALL_TEST/lib/netwtop" || exit 1
+: >"$INSTALL_TEST/lib/netwtop/runtime.sh"
+NETWTOP_PREFIX=$INSTALL_TEST "$PROJECT_ROOT/install.sh" >/dev/null || exit 1
+"$INSTALL_TEST/bin/netwtop" --help >/dev/null || exit 1
+[ -s "$INSTALL_TEST/lib/netwtop/manifest.sh" ] || exit 1
+[ -s "$INSTALL_TEST/lib/netwtop/core/accounting.sh" ] || exit 1
+[ -s "$INSTALL_TEST/lib/netwtop/runtime/runtime.sh" ] || exit 1
+[ -s "$INSTALL_TEST/lib/netwtop/output/formats.sh" ] || exit 1
+[ ! -e "$INSTALL_TEST/lib/netwtop/runtime.sh" ] || exit 1
+grep -Fq "color_border=\$(printf '\\033[37m')" \
+    "$PROJECT_ROOT/src/ui/table.sh" || exit 1
+WHITE_BORDER=$(printf '\033[37m')
+CYAN_TITLE=$(printf '\033[1;36m')
+COLOR_RESET=$(printf '\033[0m')
+LC_ALL=C awk -F '\t' \
+    -v elapsed=1 -v refresh_interval=1 -v display_mode=compact \
+    -v two_column_width=100 -v backend=test -v scope=test \
+    -v ui_width=120 -v ui_height=40 -v interface_name=test0 \
+    -v interface_index=2 -v interface_count=4 \
+    -v interface_rx_delta=0 -v interface_tx_delta=0 \
+    -v attribution_device_scoped=0 -v history_limit=120 -v host_name=test \
+    -v session_label=test -v display_time=test \
+    -v color_border="$WHITE_BORDER" -v color_title="$CYAN_TITLE" \
+    -v color_reset="$COLOR_RESET" \
+    -f "$PROJECT_ROOT/src/ui/table.awk" \
+    "$PROJECT_ROOT/tests/fixtures/names.tsv" \
+    "$PROJECT_ROOT/tests/fixtures/commands.tsv" \
+    "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
+    "$PROJECT_ROOT/tests/fixtures/history.tsv" >"$SMOKE_OUTPUT" || exit 1
+grep -Fq "${WHITE_BORDER}╒" "$SMOKE_OUTPUT" || exit 1
+grep -Fq "${WHITE_BORDER}│${COLOR_RESET} ${CYAN_TITLE}NETWTOP" \
+    "$SMOKE_OUTPUT" || exit 1
+grep -Fq "${COLOR_RESET}${WHITE_BORDER} │ ${COLOR_RESET}" \
+    "$SMOKE_OUTPUT" || exit 1
+grep -Fq 'Device: test0 [2/4]' "$SMOKE_OUTPUT" || exit 1
 LC_ALL=C awk -F '\t' \
     -v elapsed=1 -v refresh_interval=1 -v display_mode=compact \
     -v backend=test -v scope=test -v ui_width=80 -v ui_height=24 \
     -v interface_name=test0 -v interface_rx_delta=209715200 \
     -v interface_tx_delta=157286400 -v attribution_device_scoped=0 \
     -v history_limit=60 -v host_name=test -v session_label=test \
-    -v display_time=test -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+    -v display_time=test -f "$PROJECT_ROOT/src/ui/table.awk" \
     "$PROJECT_ROOT/tests/fixtures/names.tsv" \
     "$PROJECT_ROOT/tests/fixtures/commands.tsv" \
     "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
@@ -109,7 +171,7 @@ LC_ALL=C awk -F '\t' \
     -v interface_name=test0 -v interface_rx_delta=3145728 \
     -v interface_tx_delta=1572864 -v attribution_device_scoped=0 \
     -v history_limit=120 -v host_name=test -v session_label=test \
-    -v display_time=test -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+    -v display_time=test -f "$PROJECT_ROOT/src/ui/table.awk" \
     "$PROJECT_ROOT/tests/fixtures/names.tsv" \
     "$PROJECT_ROOT/tests/fixtures/commands.tsv" \
     "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
@@ -133,10 +195,11 @@ render_responsive_test() {
         -v hitmap_file="$HITMAP_TEST" \
         -v backend=test -v scope=test -v ui_width="$responsive_width" \
         -v ui_height="$responsive_height" -v interface_name=test0 \
+        -v interface_index=2 -v interface_count=4 \
         -v interface_rx_delta=3145728 -v interface_tx_delta=1572864 \
         -v attribution_device_scoped=0 -v history_limit=120 -v host_name=test \
         -v session_label=test -v display_time=test \
-        -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+        -f "$PROJECT_ROOT/src/ui/table.awk" \
         "$PROJECT_ROOT/tests/fixtures/names.tsv" \
         "$PROJECT_ROOT/tests/fixtures/commands.tsv" \
         "$responsive_rows" \
@@ -147,6 +210,8 @@ render_responsive_test() {
 render_responsive_test 99 24 100
 grep -q 'UP HISTORY' "$SMOKE_OUTPUT" || exit 1
 grep -q 'UPLOAD/s' "$SMOKE_OUTPUT" || exit 1
+grep -q 'USER DATA: ALL INTERFACES' "$SMOKE_OUTPUT" || exit 1
+grep -q 'ALL-INTERFACE USER TRAFFIC' "$SMOKE_OUTPUT" || exit 1
 if grep -q 'UID / ACTIVE' "$SMOKE_OUTPUT"; then exit 1; fi
 if grep -Eq 'UP .*MAX .*DN .*MAX' "$SMOKE_OUTPUT"; then exit 1; fi
 render_responsive_test 100 28 100
@@ -300,7 +365,7 @@ LC_ALL=C awk -F '\t' \
     -v interface_rx_delta=0 -v interface_tx_delta=0 \
     -v attribution_device_scoped=0 -v history_limit=120 -v host_name=test \
     -v session_label='[q] [j/k/Pg] Users [[/]] Cmd [mouse]' \
-    -v display_time=test -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+    -v display_time=test -f "$PROJECT_ROOT/src/ui/table.awk" \
     "$PROJECT_ROOT/tests/fixtures/names.tsv" \
     "$PROJECT_ROOT/tests/fixtures/commands_scroll.tsv" \
     "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
@@ -371,17 +436,18 @@ LC_ALL=C awk -F '\t' \
     -v interface_name=test0 -v interface_rx_delta=0 -v interface_tx_delta=0 \
     -v attribution_device_scoped=0 -v history_limit=120 -v host_name=test \
     -v session_label='[q] [j/k/Pg] [x] [[/]] [mouse]' \
-    -v display_time=test -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+    -v display_time=test -f "$PROJECT_ROOT/src/ui/table.awk" \
     "$PROJECT_ROOT/tests/fixtures/names.tsv" \
     "$PROJECT_ROOT/tests/fixtures/commands_scroll.tsv" \
     "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
     "$PROJECT_ROOT/tests/fixtures/history.tsv" >"$SMOKE_OUTPUT" || exit 1
 [ "$(wc -l <"$SMOKE_OUTPUT")" -eq 24 ] || exit 1
-grep -q 'CHECKED  Commands 4-8/8  alice' "$SMOKE_OUTPUT" || exit 1
+grep -q 'ALL-INTERFACE CHECKED' "$SMOKE_OUTPUT" || exit 1
 grep -q '\[x\].*alice' "$SMOKE_OUTPUT" || exit 1
 grep -q 'PID 126' "$SMOKE_OUTPUT" || exit 1
 grep -q 'PID 130.*UP 0 B/s  DN 0 B/s' "$SMOKE_OUTPUT" || exit 1
 grep -q 'command.*1000.*130' "$HITMAP_TEST" || exit 1
+grep -q 'ACCOUNTED (ALL IFA' "$SMOKE_OUTPUT" || exit 1
 grep -q "$(printf 'expanded\t1000')" "$LAYOUT_TEST" || exit 1
 grep -q "$(printf 'table\t0\t5')" "$LAYOUT_TEST" || exit 1
 grep -q "$(printf 'command\t1000\t3')" "$LAYOUT_TEST" || exit 1
@@ -393,7 +459,7 @@ for RESIZE_HEIGHT in 34 35 36 37 38; do
         -v interface_name=test0 -v interface_rx_delta=3145728 \
         -v interface_tx_delta=1572864 -v attribution_device_scoped=0 \
         -v history_limit=120 -v host_name=test -v session_label=test \
-        -v display_time=test -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+        -v display_time=test -f "$PROJECT_ROOT/src/ui/table.awk" \
         "$PROJECT_ROOT/tests/fixtures/names.tsv" \
         "$PROJECT_ROOT/tests/fixtures/commands.tsv" \
         "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
@@ -448,7 +514,7 @@ if [ -n "$UTF8_TEST_LOCALE" ] \
                 -v interface_name=test0 -v interface_rx_delta=0 \
                 -v interface_tx_delta=0 -v attribution_device_scoped=0 \
                 -v history_limit=120 -v host_name=test -v session_label=test \
-                -v display_time=test -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+                -v display_time=test -f "$PROJECT_ROOT/src/ui/table.awk" \
                 "$PROJECT_ROOT/tests/fixtures/names.tsv" \
                 "$PROJECT_ROOT/tests/fixtures/commands.tsv" \
                 "$PROJECT_ROOT/tests/fixtures/rows.tsv" \
@@ -468,13 +534,22 @@ fail() {
     printf 'Error: %s\n' "$*" >&2
     exit 1
 }
-. "$PROJECT_ROOT/lib/netwtop/history.sh"
+. "$PROJECT_ROOT/src/core/history.sh"
 HISTORY=$HISTORY_TEST
 TABLE_ROWS=$PROJECT_ROOT/tests/fixtures/rows.tsv
 HISTORY_SAMPLE=0
 HISTORY_LIMIT=120
 INTERFACE_TX_DELTA=1572864
 INTERFACE_RX_DELTA=3145728
+printf '1\tI\t1\t2\n1\tU:1000\t3\t4\n1\tA\t3\t4\n' >"$HISTORY"
+reset_interface_history
+if LC_ALL=C awk -F '\t' '$2 == "I" { found = 1 } END { exit !found }' \
+        "$HISTORY"; then
+    exit 1
+fi
+grep -Fq "$(printf '1\tU:1000\t3\t4')" "$HISTORY" || exit 1
+grep -Fq "$(printf '1\tA\t3\t4')" "$HISTORY" || exit 1
+: >"$HISTORY"
 history_test_sample=0
 while [ "$history_test_sample" -lt 125 ]; do
     record_history 1
@@ -495,7 +570,7 @@ LC_ALL=C awk -F '\t' \
     -v interface_name=test0 -v interface_rx_delta=0 \
     -v interface_tx_delta=0 -v attribution_device_scoped=0 \
     -v history_limit=120 -v host_name=test -v session_label=test \
-    -v display_time=test -f "$PROJECT_ROOT/lib/netwtop/ui/table.awk" \
+    -v display_time=test -f "$PROJECT_ROOT/src/ui/table.awk" \
     "$PROJECT_ROOT/tests/fixtures/names.tsv" /dev/null \
     "$PROJECT_ROOT/tests/fixtures/rows.tsv" "$HISTORY" >"$SMOKE_OUTPUT" || exit 1
 grep -q '120/120' "$SMOKE_OUTPUT" || exit 1

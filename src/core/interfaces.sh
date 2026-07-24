@@ -40,6 +40,91 @@ select_macos_interface() {
     [ -z "$first_interface" ] || printf '%s\n' "$first_interface"
 }
 
+list_linux_interfaces() {
+    LC_ALL=C awk -F: '
+        NR > 2 {
+            name = $1
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", name)
+            if (name != "") print name
+        }
+    ' /proc/net/dev 2>/dev/null | LC_ALL=C sort -u
+}
+
+list_macos_interfaces() {
+    $MACOS_IFCONFIG -l 2>/dev/null \
+        | LC_ALL=C awk '{ for (field = 1; field <= NF; field++) print $field }' \
+        | LC_ALL=C sort -u
+}
+
+list_available_interfaces() {
+    case $OS_NAME in
+        Linux) list_linux_interfaces ;;
+        Darwin) list_macos_interfaces ;;
+    esac
+}
+
+refresh_interface_list() {
+    INTERFACE_NAMES=$(list_available_interfaces)
+    INTERFACE_COUNT=$(printf '%s\n' "$INTERFACE_NAMES" \
+        | LC_ALL=C awk 'NF { count++ } END { print count + 0 }')
+    INTERFACE_INDEX=$(printf '%s\n' "$INTERFACE_NAMES" \
+        | LC_ALL=C awk -v device="$DEVICE" '
+            NF { count++ }
+            $0 == device { print count; found = 1; exit }
+            END { if (!found) print 0 }
+        ')
+
+    # A successfully configured device should normally be present in the OS
+    # list. Retain it without hiding the other choices if enumeration races
+    # with a rename or temporarily omits the active device.
+    if [ "$INTERFACE_INDEX" -eq 0 ]; then
+        INTERFACE_NAMES=$(printf '%s\n%s\n' "$INTERFACE_NAMES" "$DEVICE" \
+            | LC_ALL=C awk 'NF' | LC_ALL=C sort -u)
+        INTERFACE_COUNT=$(printf '%s\n' "$INTERFACE_NAMES" \
+            | LC_ALL=C awk 'NF { count++ } END { print count + 0 }')
+        INTERFACE_INDEX=$(printf '%s\n' "$INTERFACE_NAMES" \
+            | LC_ALL=C awk -v device="$DEVICE" '
+                NF { count++ }
+                $0 == device { print count; exit }
+            ')
+    fi
+}
+
+adjacent_interface_name() {
+    interface_direction=$1
+    [ "$INTERFACE_COUNT" -gt 1 ] || return 1
+    case $interface_direction in
+        -1)
+            interface_target_index=$((INTERFACE_INDEX - 1))
+            [ "$interface_target_index" -ge 1 ] \
+                || interface_target_index=$INTERFACE_COUNT
+            ;;
+        1)
+            interface_target_index=$((INTERFACE_INDEX + 1))
+            [ "$interface_target_index" -le "$INTERFACE_COUNT" ] \
+                || interface_target_index=1
+            ;;
+        *) return 1 ;;
+    esac
+    printf '%s\n' "$INTERFACE_NAMES" | LC_ALL=C awk \
+        -v target="$interface_target_index" '
+            NF { count++ }
+            count == target { print; exit }
+        '
+}
+
+switch_interface() {
+    interface_direction=$1
+    refresh_interface_list
+    interface_candidate=$(adjacent_interface_name "$interface_direction") \
+        || return 1
+    [ -n "$interface_candidate" ] && [ "$interface_candidate" != "$DEVICE" ] \
+        || return 1
+    DEVICE=$interface_candidate
+    configure_interface
+    return 0
+}
+
 configure_interface() {
     if [ -z "$DEVICE" ]; then
         case $OS_NAME in
@@ -83,6 +168,7 @@ configure_interface() {
             INTERFACE_SOURCE='macOS interface byte counters'
             ;;
     esac
+    refresh_interface_list
 }
 
 snapshot_interface_linux_sysfs() {
