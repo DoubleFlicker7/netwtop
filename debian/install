@@ -1,9 +1,0 @@
-bin/netwtop usr/bin
-src/manifest.sh usr/lib/netwtop
-src/backends/*.sh usr/lib/netwtop/backends
-src/core/*.sh usr/lib/netwtop/core
-src/output/*.sh usr/lib/netwtop/output
-src/runtime/*.sh usr/lib/netwtop/runtime
-src/ui/*.sh usr/lib/netwtop/ui
-src/ui/*.awk usr/lib/netwtop/ui
-man/netwtop.1 usr/share/man/man1

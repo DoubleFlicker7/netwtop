@@ -1,6 +1,8 @@
 .agents
 .codex
-debian
+/debian/
+/docs/packaging/
+/man/
 *.build
 *.buildinfo
 *.changes
@@ -8,4 +10,4 @@ debian
 *.dsc
 *.debian.tar.*
 *.orig.tar.*
-tmp
+/tmp/
