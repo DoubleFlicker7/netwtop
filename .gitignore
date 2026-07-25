@@ -1,9 +1,6 @@
 .agents
 .codex
-debian/.debhelper/
-debian/debhelper-build-stamp
-debian/files
-debian/netwtop/
+debian
 *.build
 *.buildinfo
 *.changes
@@ -11,3 +8,4 @@ debian/netwtop/
 *.dsc
 *.debian.tar.*
 *.orig.tar.*
+tmp
