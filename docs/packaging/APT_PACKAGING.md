@@ -14,7 +14,7 @@ sudo apt install netwtop
 | 目标 | 用户执行的命令 | 是否需要软件仓库 |
 | --- | --- | --- |
 | 安装本地软件包 | `sudo apt install ./netwtop_0.1.0-1_all.deb` | 否 |
-| 从项目自己的仓库安装 | 添加一次项目仓库，然后执行 `sudo apt install netwtop` | 是，自建仓库或 PPA |
+| 从 Launchpad PPA 安装 | 添加一次 PPA，然后执行 `sudo apt install netwtop` | 是，PPA |
 | 从系统默认仓库安装 | `sudo apt install netwtop` | 是，必须进入 Debian/Ubuntu 官方仓库 |
 
 如果希望用户在一台标准 Debian 或 Ubuntu 机器上不添加任何第三方源就能
@@ -342,49 +342,11 @@ sudo apt install ./netwtop_0.1.0-1_all.deb
 这种方式不能让新用户直接执行 `apt install netwtop`，因为 APT 不知道应该
 从哪里查找该包。
 
-## 10. 发布路线二：自建 APT 仓库
+## 10. 发布路线二：Launchpad PPA
 
-自建仓库可以实现“添加一次软件源，以后通过包名安装和升级”。
-
-完整的仓库规划、GPG 密钥、`reprepro` 配置、HTTPS 部署、deb822
-`.sources`、CI/CD 和密钥轮换步骤见
-[自建 APT 仓库实施指南](SELF_HOSTED_APT_REPOSITORY.md)。本节只保留三种
-发布路线之间的概览对比。
-
-需要完成：
-
-1. 构建 `.deb` 和源码包。
-2. 为每个发行版维护 suite，例如 Debian trixie 或 Ubuntu noble。
-3. 生成 `Packages`、`Packages.gz`、`Release` 和 `InRelease`。
-4. 使用项目 GPG 密钥签名仓库元数据。
-5. 通过 HTTPS 托管仓库。
-6. 提供 `/etc/apt/keyrings/` 公钥安装说明。
-7. 提供 deb822 `.sources` 文件。
-8. 在每次发布时自动更新索引和签名。
-
-常见仓库方案包括：
-
-- `reprepro`
-- `aptly`
-- Launchpad PPA
-- packagecloud
-- GitHub Pages 配合 APT 仓库生成工具
-
-用户首次需要添加仓库，之后即可执行：
-
-```sh
-sudo apt update
-sudo apt install netwtop
-sudo apt upgrade
-```
-
-仓库维护者还需要负责：
-
-- GPG 密钥轮换和备份。
-- HTTPS 域名和证书。
-- 旧发行版支持周期。
-- 软件包撤回与安全更新。
-- 不同 Debian/Ubuntu 版本的依赖兼容性。
+Launchpad PPA 接收 Debian 源码包，并为指定的 Ubuntu series 构建和发布
+二进制包。账号注册、版本规则、源码上传、发布和安装验证流程见
+[Launchpad PPA 维护指南](LAUNCHPAD_PPA_WORKFLOW.md)。
 
 ## 11. 发布路线三：进入 Debian 官方仓库
 
@@ -494,13 +456,13 @@ Ubuntu 稳定版更快。
 sudo apt install ./netwtop_0.1.0-1_all.deb
 ```
 
-### 阶段二：建立项目 APT 仓库
+### 阶段二：建立 Launchpad PPA
 
-1. 选择 reprepro、aptly、PPA 或托管服务。
-2. 创建并保护仓库签名密钥。
-3. 建立 Debian/Ubuntu 多发行版构建。
-4. 自动发布仓库索引和签名。
-5. 编写添加仓库的安装说明。
+1. 创建 Launchpad 账号和 PPA。
+2. 为每个 Ubuntu series 准备唯一的软件包版本。
+3. 构建并上传源码包。
+4. 等待 Launchpad 构建和发布二进制包。
+5. 编写添加 PPA、安装、升级和移除说明。
 
 完成后，用户添加一次软件源即可使用：
 
@@ -518,7 +480,7 @@ sudo apt install netwtop
 6. 等待 NEW queue 审核。
 7. 维护后续版本、安全问题和 Debian Bug。
 
-官方审核耗时不可预测，应与自建仓库并行，而不是阻塞用户获取软件包。
+官方审核耗时不可预测，可以先通过 PPA 向 Ubuntu 用户提供软件包。
 
 ## 14. 开始打包前需要确定的信息
 
@@ -531,7 +493,7 @@ sudo apt install netwtop
 - 项目主页。
 - 公开 Git 仓库地址。
 - Bug Tracker 地址。
-- GPG 签名密钥。
+- 源码上传签名身份。
 - 优先支持的 Debian/Ubuntu 版本。
 
 这些信息确定后，即可开始创建 `VERSION`、man page 和 `debian/` 打包文件。

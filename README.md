@@ -176,7 +176,7 @@ NETWTOP_PREFIX=/opt/netwtop ./install.sh
 Installing into a system-owned prefix may require an administrator shell.
 Normal user-level installation does not require root.
 
-For Debian packages and project-owned APT repositories, see the
+For Debian package construction and distribution planning, see the
 [packaging documentation](docs/packaging/README.md).
 
 ------
@@ -238,6 +238,7 @@ Type `netwtop --help` to display the built-in reference.
 | `-f FORMAT` | `--format FORMAT` | `table` | Output format: `table`, `csv`, or `jsonl`. |
 | `-o FILE` | `--output FILE` | Standard output | Write reports to `FILE`. Table mode replaces the file with the latest frame; CSV/JSONL preserve samples from the run. |
 | — | `--append` | Disabled | Append CSV/JSONL records to an existing output file. Requires `--output` and is invalid for table output. |
+| `-V` | `--version` | — | Show the installed netwtop version and exit. |
 | `-h` | `--help` | — | Show options, keys, backend details, and privilege guidance, then exit. |
 
 Invalid values are rejected before sampling. This includes intervals below

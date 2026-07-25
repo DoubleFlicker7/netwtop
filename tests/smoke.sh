@@ -19,11 +19,12 @@ for module in $NETWTOP_RUNTIME_MODULES; do
 done
 
 "$PROJECT_ROOT/netwtop" --help >/dev/null || exit 1
+test "$("$PROJECT_ROOT/netwtop" --version)" = 'netwtop 0.1.1' || exit 1
 "$PROJECT_ROOT/netwtop" --help | grep -q 'default: 0.5' || exit 1
 "$PROJECT_ROOT/netwtop" --help | grep -q -- '--two-column-width' || exit 1
 for documented_option in \
     --interval --device --count --mode --two-column-width \
-    --format --output --append --help
+    --format --output --append --version --help
 do
     grep -q -- "$documented_option" "$PROJECT_ROOT/README.md" || {
         printf 'Error: README is missing option %s.\n' "$documented_option" >&2
@@ -35,7 +36,7 @@ done
 [ -s "$PROJECT_ROOT/docs/DEVELOPMENT.md" ] || exit 1
 [ -s "$PROJECT_ROOT/docs/packaging/README.md" ] || exit 1
 [ -s "$PROJECT_ROOT/docs/packaging/APT_PACKAGING.md" ] || exit 1
-[ -s "$PROJECT_ROOT/docs/packaging/SELF_HOSTED_APT_REPOSITORY.md" ] || exit 1
+[ -s "$PROJECT_ROOT/docs/packaging/LAUNCHPAD_PPA_WORKFLOW.md" ] || exit 1
 [ -s "$PROJECT_ROOT/CHANGELOG.md" ] || exit 1
 [ -s "$PROJECT_ROOT/LICENSE" ] || exit 1
 if "$PROJECT_ROOT/netwtop" --interval 0.09 --format jsonl --count 1 \
@@ -128,6 +129,7 @@ mkdir -p "$INSTALL_TEST/lib/netwtop" || exit 1
 : >"$INSTALL_TEST/lib/netwtop/runtime.sh"
 NETWTOP_PREFIX=$INSTALL_TEST "$PROJECT_ROOT/install.sh" >/dev/null || exit 1
 "$INSTALL_TEST/bin/netwtop" --help >/dev/null || exit 1
+test "$("$INSTALL_TEST/bin/netwtop" --version)" = 'netwtop 0.1.1' || exit 1
 [ -s "$INSTALL_TEST/lib/netwtop/manifest.sh" ] || exit 1
 [ -s "$INSTALL_TEST/lib/netwtop/core/accounting.sh" ] || exit 1
 [ -s "$INSTALL_TEST/lib/netwtop/runtime/runtime.sh" ] || exit 1

@@ -1,0 +1,23 @@
+Source: netwtop
+Section: net
+Priority: optional
+Maintainer: DoubleFlicker7 <eddyxu2000@gmail.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.0
+Rules-Requires-Root: no
+Homepage: https://github.com/DoubleFlicker7/netwtop
+Vcs-Git: https://github.com/DoubleFlicker7/netwtop.git
+Vcs-Browser: https://github.com/DoubleFlicker7/netwtop
+
+Package: netwtop
+Architecture: all
+Depends: ${misc:Depends}, iproute2, procps
+Description: interactive per-user network traffic monitor
+ netwtop is a terminal network monitor for Linux and macOS inspired by nvitop.
+ It displays authoritative per-interface upload and download rates together
+ with best-effort per-user and per-command attribution, rolling history,
+ interface switching, and a responsive interactive table.
+ .
+ The implementation uses POSIX shell, awk, and operating-system counters. On
+ Linux, iproute2 ss provides TCP attribution while sysfs provides interface
+ totals. Root access is optional and enables command details for other users.

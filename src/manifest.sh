@@ -1,4 +1,3 @@
-#!/bin/sh
 # Ordered runtime modules and non-shell resources shipped with netwtop.
 
 NETWTOP_RUNTIME_MODULES='runtime/runtime.sh
@@ -12,4 +11,3 @@ output/formats.sh
 ui/table.sh'
 
 NETWTOP_RESOURCE_FILES='ui/table.awk'
-

@@ -16,10 +16,9 @@ semantics, privileges, output formats, accounting behavior, and troubleshooting.
 - [Development](DEVELOPMENT.md) describes checkout execution, offline tests,
   manual terminal checks, staged installation, coding conventions, and backend
   extension requirements.
-- [Packaging](packaging/README.md) indexes Debian package and project-owned APT
-  repository procedures.
+- [Packaging](packaging/README.md) covers Debian package construction,
+  validation, and maintained distribution documentation.
 
 All runtime UI labels and diagnostics must remain in English. Documentation may
 be translated independently as long as commands, paths, and accounting
 semantics remain consistent with the implementation.
-

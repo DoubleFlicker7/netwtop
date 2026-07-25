@@ -4,6 +4,8 @@
 set -u
 umask 077
 
+NETWTOP_VERSION=0.1.1
+
 BIN_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd) || exit 1
 PREFIX_DIR=$(CDPATH= cd -- "$BIN_DIR/.." && pwd) || exit 1
 

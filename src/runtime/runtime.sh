@@ -15,6 +15,7 @@ Options:
   -f, --format FORMAT     Output format: table, csv, or jsonl (default: table)
   -o, --output FILE       Write reports to FILE instead of standard output
       --append            Append to FILE instead of replacing it
+  -V, --version           Show version and exit
   -h, --help              Show this help and exit
 
 Interactive keys:
@@ -39,6 +40,10 @@ shown only for the current UID while other regular users retain aggregate rates.
 Root enables command details for all visible regular users. Inaccessible socket
 owners are grouped under [unattributed] when their details are permitted.
 EOF
+}
+
+version() {
+    printf '%s %s\n' "$PROGRAM" "$NETWTOP_VERSION"
 }
 
 fail() {
@@ -115,6 +120,10 @@ parse_options() {
             --append)
                 APPEND=1
                 shift
+                ;;
+            -V|--version)
+                version
+                exit 0
                 ;;
             -h|--help)
                 usage

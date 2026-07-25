@@ -1,16 +1,14 @@
-# Packaging documentation
+# netwtop packaging documentation
 
-These guides describe how to distribute `netwtop` through Debian's package
-format and APT.
+This directory contains the maintained Debian packaging documentation for
+`netwtop`.
 
-- [APT packaging and publishing](APT_PACKAGING.md) covers source preparation,
-  Debian metadata, package contents, local validation, repository options, and
-  the Debian submission path.
-- [Self-hosted APT repository](SELF_HOSTED_APT_REPOSITORY.md) covers signing,
-  `reprepro`, HTTPS publication, CI/CD, client configuration, operations, and
-  key rotation for a project-owned repository.
+- [APT packaging](APT_PACKAGING.md) describes the source layout, Debian
+  metadata, local builds, package validation, and paths toward distribution.
+- [Launchpad PPA workflow](LAUNCHPAD_PPA_WORKFLOW.md) provides the complete
+  account, signing, source-build, upload, publication, installation, and
+  maintenance procedure for the Ubuntu PPA.
+- The project packaging metadata lives in [`debian/`](../../debian/).
+- The manual page source lives in [`man/netwtop.1`](../../man/netwtop.1).
 
-The documents are operational guidance rather than files consumed by the
-runtime. Keep example versions synchronized with [CHANGELOG.md](../../CHANGELOG.md)
-when preparing a release.
-
+Only active packaging workflows are documented here.

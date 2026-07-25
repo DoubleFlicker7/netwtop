@@ -27,9 +27,8 @@ destination. In a checkout, `bin/netwtop` discovers `src/manifest.sh`. After
 installation it discovers the same manifest below `../lib/netwtop`. The root
 `netwtop` file is only a development launcher.
 
-Packaging is documented in [`packaging/APT_PACKAGING.md`](packaging/APT_PACKAGING.md). The
-production procedure for publishing from the project's own repository is in
-[`packaging/SELF_HOSTED_APT_REPOSITORY.md`](packaging/SELF_HOSTED_APT_REPOSITORY.md).
+Packaging is documented in
+[`packaging/APT_PACKAGING.md`](packaging/APT_PACKAGING.md).
 
 ## Running from a checkout
 

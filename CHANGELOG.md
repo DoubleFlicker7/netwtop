@@ -9,8 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Add `-V`/`--version` for reporting the installed netwtop version.
+- Add an execution-ready Launchpad PPA workflow covering account setup,
+  source signing, versioning, upload, publication, installation, maintenance,
+  and troubleshooting.
+
 ### Changed
 
+- Align the PPA maintainer and contact identity with the verified Launchpad
+  account email while retaining the existing source-signing key fingerprint.
 - Use gray for user identity fields while preserving green Upload and blue
   Download values and histories in both responsive table layouts.
 - Restrict aggregate attribution to `root`, the current/invoking user, and UIDs
@@ -62,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add regression coverage for interface switching, safe rebaselining,
   all-interface scope labels, responsive frame widths, and white table borders.
 - Add a documentation index and a dedicated `docs/packaging/` section.
-- Add detailed Debian package and self-hosted APT repository guidance.
+- Add detailed Debian package guidance.
 - Add dual licensing under Apache-2.0 or GPL-3.0.
 
 ### Changed
